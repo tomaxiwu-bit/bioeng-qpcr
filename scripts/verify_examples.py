@@ -39,6 +39,7 @@ def verify_enzyme_kinetics() -> None:
 
     from bioeng_qpcr.enzyme_kinetics import (
         classify_inhibition,
+        compare_inhibition_models,
         fit_michaelis_menten,
         read_kinetics_csv,
         validate_km_range,
@@ -67,6 +68,13 @@ def verify_enzyme_kinetics() -> None:
     ]
     inhibition = classify_inhibition(datasets)
     print(f"Inhibition classification OK: {inhibition.inhibition_type}")
+
+    comparison = compare_inhibition_models(datasets)
+    best = comparison.best_fit
+    print(
+        f"Global inhibition model OK: {comparison.best_type.value} "
+        f"(AICc={best.aicc:.2f}, w={best.akaike_weight:.3f})"
+    )
 
 
 def verify_fermentation() -> None:

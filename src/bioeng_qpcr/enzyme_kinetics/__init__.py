@@ -7,10 +7,13 @@ inhibition type classification, and enzyme-kinetics validation rules.
 from __future__ import annotations
 
 from bioeng_qpcr.enzyme_kinetics.inhibition import (
+    GlobalInhibitionFit,
     InhibitionDataset,
+    InhibitionModelComparison,
     InhibitionResult,
     InhibitionType,
     classify_inhibition,
+    compare_inhibition_models,
 )
 from bioeng_qpcr.enzyme_kinetics.michaelis_menten import (
     LineweaverBurkResult,
@@ -37,6 +40,9 @@ __all__ = [
     "InhibitionDataset",
     "InhibitionResult",
     "classify_inhibition",
+    "GlobalInhibitionFit",
+    "InhibitionModelComparison",
+    "compare_inhibition_models",
     # Validation
     "KineticsValidationResult",
     "validate_km_range",

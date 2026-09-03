@@ -164,7 +164,9 @@ import numpy as np
 from bioeng_qpcr.enzyme_kinetics import classify_inhibition
 
 groups = defaultdict(lambda: ([], []))
-with open("examples/inhibition_example.csv", newline="") as handle:
+with open(
+    "examples/inhibition_example.csv", newline="", encoding="utf-8-sig"
+) as handle:
     for row in csv.DictReader(handle):
         conc = float(row["inhibitor_concentration"])
         groups[conc][0].append(float(row["substrate_concentration"]))
@@ -184,8 +186,40 @@ The classifier reports one of `COMPETITIVE`, `NON_COMPETITIVE`,
 `UNCOMPETITIVE`, `MIXED`, or `NONE` together with a coefficient-of-variation
 based confidence and an explicit message. Classification is a trend-based
 screening method over how apparent Km and Vmax shift with inhibitor
-concentration; confirm important mechanism calls with global nonlinear fitting
-and model selection.
+concentration; confirm important mechanism calls with the global fit below.
+
+### Global model selection (AICc)
+
+For a publishable mechanism call, globally fit the rate equation of every
+candidate mechanism to all inhibitor concentrations at once and rank them by
+small-sample-corrected AIC. `compare_inhibition_models` reuses the same
+`datasets` list built above:
+
+```python
+from bioeng_qpcr.enzyme_kinetics import compare_inhibition_models
+
+comparison = compare_inhibition_models(datasets)
+
+print(comparison.best_type)  # InhibitionType.COMPETITIVE
+print(comparison.message)
+for m in comparison.models:  # ranked best-first by AICc
+    print(m.inhibition_type.value, round(m.aicc, 2), round(m.akaike_weight, 3))
+print(comparison.best_fit.parameters)
+```
+
+On the shipped example this selects competitive inhibition with
+`Vmax = 98.96`, `Km = 10.14`, `Ki = 5.20` — but the mixed model lands within
+ΔAICc = 0.65 of the winner, so the comparison flags the call as unresolved.
+That is the honest answer when the tested inhibitor range does not yet
+discriminate the two mechanisms: mixed inhibition collapses to competitive
+when the ES-complex affinity is weak, so distinguishing them needs higher
+inhibitor concentrations, not more replicates. As rules of thumb, treat
+ΔAICc > 10 between the best and runner-up models as decisive and ΔAICc < 2
+as unresolved.
+
+Akaike weights quantify the relative support for each mechanism and sum to 1
+across the candidate set. The winning `GlobalInhibitionFit` also carries
+parameter standard errors, the pooled RSS, and AIC/BIC for reporting.
 
 ## 8. Fit batch-fermentation kinetics
 
