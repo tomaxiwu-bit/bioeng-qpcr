@@ -19,6 +19,7 @@ and audited.
 - Efficiency-corrected normalized quantities with multiple reference genes
 - Explicit opt-in ΔCq, ΔΔCq, and Pfaffl compatibility methods
 - Strict CSV validation with row/column diagnostics and an auditable lenient mode
+- RDML 1.x ingestion (`.rdml`/`.rdm` archives, gzip, or XML) into the same pipeline
 - Four-state readiness rules: `PASS`, `WARN`, `FAIL`, `NOT_ASSESSABLE`
 - geNorm stability analysis and pairwise-variation reporting
 - Efficiency-corrected geNorm and model-based NormFinder stability scoring
@@ -95,6 +96,13 @@ See [`examples/researcher_example.csv`](examples/researcher_example.csv) for
 the full supported schema and [`docs/RESEARCHER_GUIDE.md`](docs/RESEARCHER_GUIDE.md)
 for the workflow.
 
+### RDML input
+
+Instrument exports in RDML (`.rdml`/`.rdm` archives or plain XML) are read
+by the same pipeline (`read_rdml` from `bioeng_qpcr.io`; all CLI commands
+accept them directly). Reference genes come from the RDML target type,
+sample groups from annotations, and `<adp>` points become raw traces.
+
 ## Example datasets
 
 Every module ships with a small worked dataset in [`examples/`](examples/):
@@ -102,6 +110,7 @@ Every module ships with a small worked dataset in [`examples/`](examples/):
 | Dataset | Module | Workflow |
 |---|---|---|
 | `researcher_example.csv` | qPCR | full-schema treated-vs-control analysis |
+| `rdml_example.xml` | qPCR | the same experiment as RDML for interchange testing |
 | `qpcr_simple_plate_example.csv` | qPCR | minimal plate export with technical replicates |
 | `enzyme_kinetics_example.csv` | enzyme kinetics | Michaelis-Menten fitting |
 | `inhibition_example.csv` | enzyme kinetics | inhibition classification across four inhibitor concentrations |

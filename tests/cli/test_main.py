@@ -693,3 +693,90 @@ class TestExitCodes:
             # analyze requires --target and --control.
             result = runner.invoke(cli, ["analyze", "data.csv"])
             assert result.exit_code == 2
+
+
+# ---------------------------------------------------------------------------
+# RDML input
+# ---------------------------------------------------------------------------
+
+
+class TestRdmlInput:
+    """Every ingesting sub-command accepts RDML files."""
+
+    RDML_EXAMPLE = (
+        Path(__file__).resolve().parents[2] / "examples" / "rdml_example.xml"
+    )
+
+    def test_validate_rdml_xml(self, runner: CliRunner) -> None:
+        result = runner.invoke(
+            cli,
+            [
+                "validate",
+                str(self.RDML_EXAMPLE),
+                "--reference-targets",
+                "GAPDH,RPLP0",
+            ],
+        )
+        assert result.exit_code == 0
+
+    def test_analyze_rdml_matches_csv(self, runner: CliRunner) -> None:
+        args = [
+            "--target",
+            "IL6",
+            "--control",
+            "Control_1",
+            "--reference-target",
+            "GAPDH,RPLP0",
+        ]
+        with runner.isolated_filesystem():
+            csv_result = runner.invoke(
+                cli, ["analyze", str(RESEARCHER_EXAMPLE), *args]
+            )
+            rdml_result = runner.invoke(
+                cli, ["analyze", str(self.RDML_EXAMPLE), *args]
+            )
+
+        assert csv_result.exit_code == 0
+        assert rdml_result.exit_code == 0
+        csv_by_sample = {
+            row["sample_name"]: row
+            for row in json.loads(csv_result.stdout)["results"]
+        }
+        rdml_by_sample = {
+            row["sample_name"]: row
+            for row in json.loads(rdml_result.stdout)["results"]
+        }
+        assert set(csv_by_sample) == set(rdml_by_sample)
+        for sample, row in csv_by_sample.items():
+            assert rdml_by_sample[sample]["normalized_quantity"] == pytest.approx(
+                row["normalized_quantity"]
+            )
+
+    def test_validate_rdml_zip_archive(self, runner: CliRunner) -> None:
+        import zipfile
+
+        with runner.isolated_filesystem():
+            archive_path = "example.rdml"
+            with zipfile.ZipFile(archive_path, "w") as archive:
+                archive.writestr(
+                    "rdml_data.xml",
+                    self.RDML_EXAMPLE.read_text(encoding="utf-8"),
+                )
+            result = runner.invoke(
+                cli,
+                [
+                    "validate",
+                    archive_path,
+                    "--reference-targets",
+                    "GAPDH,RPLP0",
+                ],
+            )
+        assert result.exit_code == 0
+
+    def test_non_rdml_xml_reports_error(self, runner: CliRunner) -> None:
+        with runner.isolated_filesystem():
+            xml_path = _write_csv("not_rdml.xml", "<html><body/></html>")
+            result = runner.invoke(cli, ["validate", xml_path])
+
+        assert result.exit_code == 1
+        assert "rdml" in result.output.lower()

@@ -1,0 +1,250 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Example RDML document for bioeng-qpcr.
+
+  Mirrors examples/researcher_example.csv: 2 control + 2 treated samples,
+  3 targets (IL6 target of interest; GAPDH and RPLP0 reference genes),
+  technical duplicates per sample/target, and a no-template control.
+  Stored as plain XML for readability; real .rdml/.rdm files are ZIP
+  archives containing rdml_data.xml, which the reader also accepts.
+
+  The plate is a 96-well format (8 rows x 12 columns) and the wells used
+  occupy A01-A06, B01-B06, ..., E01-E06.  Per the RDML convention the
+  react id is the well's position on the plate counted row-wise from the
+  top left, so the ids are 1-6, 13-18, 25-30, 37-42 and 49-54 rather than
+  a contiguous 1-30.
+-->
+<rdml version="1.2" xmlns="http://www.rdml.org">
+  <dateMade>2026-09-03T08:00:00Z</dateMade>
+  <dye id="SYBR"/>
+
+  <sample id="Control_1">
+    <type>unkn</type>
+    <annotation>
+      <property>group</property>
+      <value>control</value>
+    </annotation>
+  </sample>
+  <sample id="Control_2">
+    <type>unkn</type>
+    <annotation>
+      <property>group</property>
+      <value>control</value>
+    </annotation>
+  </sample>
+  <sample id="Treated_1">
+    <type>unkn</type>
+    <annotation>
+      <property>group</property>
+      <value>treated</value>
+    </annotation>
+  </sample>
+  <sample id="Treated_2">
+    <type>unkn</type>
+    <annotation>
+      <property>group</property>
+      <value>treated</value>
+    </annotation>
+  </sample>
+  <sample id="NTC">
+    <type>ntc</type>
+  </sample>
+
+  <target id="IL6">
+    <type>toi</type>
+    <amplificationEfficiency>1.96</amplificationEfficiency>
+    <dyeId id="SYBR"/>
+    <sequences>
+      <forwardPrimer>
+        <sequence>ATTGCCCTAAGGACCTCAGA</sequence>
+      </forwardPrimer>
+      <reversePrimer>
+        <sequence>GCTCAGTCTCCTCATCGAATT</sequence>
+      </reversePrimer>
+    </sequences>
+  </target>
+  <target id="GAPDH">
+    <type>ref</type>
+    <amplificationEfficiency>1.98</amplificationEfficiency>
+    <dyeId id="SYBR"/>
+    <sequences>
+      <forwardPrimer>
+        <sequence>GTCAGTGGTGGACCTGACCT</sequence>
+      </forwardPrimer>
+      <reversePrimer>
+        <sequence>AGGGGTCTACATGGCAACTG</sequence>
+      </reversePrimer>
+    </sequences>
+  </target>
+  <target id="RPLP0">
+    <type>ref</type>
+    <amplificationEfficiency>2.01</amplificationEfficiency>
+    <dyeId id="SYBR"/>
+    <sequences>
+      <forwardPrimer>
+        <sequence>GGCGACCTGGAAGTCCAACT</sequence>
+      </forwardPrimer>
+      <reversePrimer>
+        <sequence>CCATCAGCACCACAGCCTTC</sequence>
+      </reversePrimer>
+    </sequences>
+  </target>
+
+  <experiment id="researcher_example">
+    <run id="plate_1">
+      <pcrFormat>
+        <rows>8</rows>
+        <columns>12</columns>
+        <rowLabel>ABC</rowLabel>
+        <columnLabel>123</columnLabel>
+      </pcrFormat>
+
+      <react id="1">
+        <sample id="Control_1"/>
+        <data>
+          <tar id="IL6"/>
+          <cq>25.10</cq>
+          <adp><cyc>1</cyc><fluor>0.42</fluor></adp>
+          <adp><cyc>2</cyc><fluor>0.44</fluor></adp>
+          <adp><cyc>3</cyc><fluor>0.47</fluor></adp>
+          <adp><cyc>4</cyc><fluor>0.52</fluor></adp>
+          <adp><cyc>5</cyc><fluor>0.61</fluor></adp>
+          <adp><cyc>6</cyc><fluor>0.78</fluor></adp>
+          <adp><cyc>7</cyc><fluor>1.05</fluor></adp>
+          <adp><cyc>8</cyc><fluor>1.49</fluor></adp>
+        </data>
+      </react>
+      <react id="2">
+        <sample id="Control_1"/>
+        <data>
+          <tar id="IL6"/>
+          <cq>25.30</cq>
+          <adp><cyc>1</cyc><fluor>0.43</fluor></adp>
+          <adp><cyc>2</cyc><fluor>0.45</fluor></adp>
+          <adp><cyc>3</cyc><fluor>0.48</fluor></adp>
+          <adp><cyc>4</cyc><fluor>0.53</fluor></adp>
+          <adp><cyc>5</cyc><fluor>0.63</fluor></adp>
+          <adp><cyc>6</cyc><fluor>0.80</fluor></adp>
+          <adp><cyc>7</cyc><fluor>1.08</fluor></adp>
+          <adp><cyc>8</cyc><fluor>1.52</fluor></adp>
+        </data>
+      </react>
+      <react id="3">
+        <sample id="Control_1"/>
+        <data><tar id="GAPDH"/><cq>19.80</cq></data>
+      </react>
+      <react id="4">
+        <sample id="Control_1"/>
+        <data><tar id="GAPDH"/><cq>19.90</cq></data>
+      </react>
+      <react id="5">
+        <sample id="Control_1"/>
+        <data><tar id="RPLP0"/><cq>20.40</cq></data>
+      </react>
+      <react id="6">
+        <sample id="Control_1"/>
+        <data><tar id="RPLP0"/><cq>20.50</cq></data>
+      </react>
+
+      <react id="13">
+        <sample id="Control_2"/>
+        <data><tar id="IL6"/><cq>25.40</cq></data>
+      </react>
+      <react id="14">
+        <sample id="Control_2"/>
+        <data><tar id="IL6"/><cq>25.60</cq></data>
+      </react>
+      <react id="15">
+        <sample id="Control_2"/>
+        <data><tar id="GAPDH"/><cq>19.70</cq></data>
+      </react>
+      <react id="16">
+        <sample id="Control_2"/>
+        <data><tar id="GAPDH"/><cq>19.80</cq></data>
+      </react>
+      <react id="17">
+        <sample id="Control_2"/>
+        <data><tar id="RPLP0"/><cq>20.30</cq></data>
+      </react>
+      <react id="18">
+        <sample id="Control_2"/>
+        <data><tar id="RPLP0"/><cq>20.40</cq></data>
+      </react>
+
+      <react id="25">
+        <sample id="Treated_1"/>
+        <data><tar id="IL6"/><cq>23.70</cq></data>
+      </react>
+      <react id="26">
+        <sample id="Treated_1"/>
+        <data><tar id="IL6"/><cq>23.90</cq></data>
+      </react>
+      <react id="27">
+        <sample id="Treated_1"/>
+        <data><tar id="GAPDH"/><cq>19.90</cq></data>
+      </react>
+      <react id="28">
+        <sample id="Treated_1"/>
+        <data><tar id="GAPDH"/><cq>20.00</cq></data>
+      </react>
+      <react id="29">
+        <sample id="Treated_1"/>
+        <data><tar id="RPLP0"/><cq>20.50</cq></data>
+      </react>
+      <react id="30">
+        <sample id="Treated_1"/>
+        <data><tar id="RPLP0"/><cq>20.60</cq></data>
+      </react>
+
+      <react id="37">
+        <sample id="Treated_2"/>
+        <data><tar id="IL6"/><cq>23.90</cq></data>
+      </react>
+      <react id="38">
+        <sample id="Treated_2"/>
+        <data><tar id="IL6"/><cq>24.10</cq></data>
+      </react>
+      <react id="39">
+        <sample id="Treated_2"/>
+        <data><tar id="GAPDH"/><cq>19.80</cq></data>
+      </react>
+      <react id="40">
+        <sample id="Treated_2"/>
+        <data><tar id="GAPDH"/><cq>19.90</cq></data>
+      </react>
+      <react id="41">
+        <sample id="Treated_2"/>
+        <data><tar id="RPLP0"/><cq>20.40</cq></data>
+      </react>
+      <react id="42">
+        <sample id="Treated_2"/>
+        <data><tar id="RPLP0"/><cq>20.50</cq></data>
+      </react>
+
+      <react id="49">
+        <sample id="NTC"/>
+        <data><tar id="IL6"/></data>
+      </react>
+      <react id="50">
+        <sample id="NTC"/>
+        <data><tar id="IL6"/></data>
+      </react>
+      <react id="51">
+        <sample id="NTC"/>
+        <data><tar id="GAPDH"/></data>
+      </react>
+      <react id="52">
+        <sample id="NTC"/>
+        <data><tar id="GAPDH"/></data>
+      </react>
+      <react id="53">
+        <sample id="NTC"/>
+        <data><tar id="RPLP0"/></data>
+      </react>
+      <react id="54">
+        <sample id="NTC"/>
+        <data><tar id="RPLP0"/></data>
+      </react>
+    </run>
+  </experiment>
+</rdml>

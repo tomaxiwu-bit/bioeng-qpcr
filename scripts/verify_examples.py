@@ -34,6 +34,30 @@ def verify_qpcr() -> None:
     print("qPCR CLI workflows OK")
 
 
+def verify_rdml() -> None:
+    from bioeng_qpcr.cli.main import cli
+    from bioeng_qpcr.io import read_rdml, read_tidy_csv
+
+    rdml_path = str(EXAMPLES / "rdml_example.xml")
+    for argv in (
+        ["validate", rdml_path, "--reference-targets", "GAPDH,RPLP0"],
+        ["analyze", rdml_path, "--target", "IL6", "--reference-targets",
+         "GAPDH,RPLP0"],
+    ):
+        runner = cli.main(args=argv, standalone_mode=False)
+        if getattr(runner, "exit_code", 0) != 0:
+            raise SystemExit(f"RDML workflow failed: {' '.join(argv)}")
+
+    csv_experiment = read_tidy_csv(
+        EXAMPLES / "researcher_example.csv",
+        reference_targets=["GAPDH", "RPLP0"],
+    )
+    rdml_experiment = read_rdml(EXAMPLES / "rdml_example.xml")
+    if len(csv_experiment.wells) != len(rdml_experiment.wells):
+        raise SystemExit("RDML example lost wells versus the CSV example")
+    print("RDML workflows OK")
+
+
 def verify_enzyme_kinetics() -> None:
     import numpy as np
 
@@ -122,6 +146,7 @@ def verify_fba() -> None:
 
 def main() -> int:
     verify_qpcr()
+    verify_rdml()
     verify_enzyme_kinetics()
     verify_fermentation()
     verify_fba()

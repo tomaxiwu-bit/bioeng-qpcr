@@ -9,6 +9,11 @@ and plotting layers behind four sub-commands:
 * ``provenance`` -- emit a JSON provenance manifest for a dataset.
 * ``plot``       -- render fold-change bar plots or Cq heatmaps.
 
+Every command that ingests data accepts both tidy CSV files and RDML
+files (``.rdml``/``.rdm`` archives or the XML they contain); RDML sample
+groups, reference-target types, and raw amplification curves are mapped
+onto the same validation and calculation pipeline.
+
 All commands are designed to be testable with :class:`click.testing.CliRunner`
 and use exit codes consistently:
 
@@ -40,7 +45,7 @@ from bioeng_qpcr.calculations import (
     normalized_quantity_all,
     pfaffl_batch,
 )
-from bioeng_qpcr.io import CSVValidationError, read_tidy_csv
+from bioeng_qpcr.io import CSVValidationError, read_rdml, read_tidy_csv
 from bioeng_qpcr.provenance import ProvenanceManifest
 from bioeng_qpcr.reporting import build_research_report
 from bioeng_qpcr.validation import RuleExecutionError, ValidationEngine
@@ -91,20 +96,33 @@ def _fail(message: str) -> None:
     raise click.exceptions.Exit(1)
 
 
+#: Extensions parsed as RDML (ZIP archive, gzip, or the XML itself).
+#: A non-RDML XML file produces a clear "expected an <rdml> root element"
+#: error from the reader, so routing every ``.xml`` to the RDML reader
+#: cannot silently mis-parse anything.
+_RDML_SUFFIXES = frozenset({".rdml", ".rdm", ".xml"})
+
+
 def _load_experiment(
     csv_path: str,
     reference_targets: list[str] | None = None,
     *,
     strict: bool = True,
 ):
-    """Read a tidy CSV into an :class:`~bioeng_qpcr.domain.Experiment`.
+    """Read a tidy CSV or RDML file into an :class:`~bioeng_qpcr.domain.Experiment`.
 
-    On :class:`FileNotFoundError` or :class:`ValueError` (e.g. missing
-    required columns) an error message is printed and the process exits
-    with code 1.
+    Files with an ``.rdml``/``.rdm`` extension are parsed as RDML archives
+    (ZIP, gzip, or plain XML); everything else is read as a tidy CSV.  On
+    :class:`FileNotFoundError` or :class:`ValueError` an error message is
+    printed and the process exits with code 1.
     """
+    reader = (
+        read_rdml
+        if Path(csv_path).suffix.lower() in _RDML_SUFFIXES
+        else read_tidy_csv
+    )
     try:
-        return read_tidy_csv(
+        return reader(
             csv_path,
             reference_targets=reference_targets,
             strict=strict,
@@ -212,7 +230,7 @@ def validate(
     reference_targets: list[str] | None,
     lenient: bool,
 ) -> None:
-    """Run a MIQE readiness assessment on a tidy CSV file.
+    """Run a MIQE readiness assessment on a tidy CSV or RDML file.
 
     Exits with code 1 only when a rule fails or the input cannot be read.
     Warnings and unavailable evidence remain visible in the report but do not

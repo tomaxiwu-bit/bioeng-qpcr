@@ -26,7 +26,35 @@ rejects that pseudoreplication pattern.
 
 Efficiency is a fraction: `1.0` means 100% efficiency and an amplification
 factor of 2. Values must come from assay characterization; Pfaffl and the
-default normalized-quantity workflow do not substitute an assumed value.
+default normalized-quantification workflow do not substitute an assumed value.
+
+### Reading RDML files
+
+Instruments that export RDML (`.rdml`/`.rdm` archives, or the XML they
+contain) need no manual conversion:
+
+```python
+from bioeng_qpcr.io import read_rdml
+
+experiment = read_rdml("plate.rdml")
+```
+
+The reader maps RDML onto the same validation and calculation pipeline:
+targets with `<type>ref</type>` become reference genes (extra ones can be
+passed as `reference_targets=`), `sample/annotation` entries with property
+`group` become the sample groups used for comparisons, NTC samples keep
+their no-template status, and `<adp>` amplification points become raw
+traces. Technical replicates are derived automatically from repeated
+sample/target pairs. Amplification efficiencies are read from
+`amplificationEfficiency` and converted from the per-cycle factor
+convention (1.96 = 96%) to fractions. `--lenient`-style recovery is
+available as `read_rdml(path, strict=False)`.
+
+All CLI commands accept RDML files directly, e.g.
+`bioeng-qpcr analyze plate.rdml --target IL6 --reference-targets GAPDH`.
+An example document mirroring
+[`examples/researcher_example.csv`](../examples/researcher_example.csv) is
+kept at [`examples/rdml_example.xml`](../examples/rdml_example.xml).
 
 ## 2. Validate the input and readiness evidence
 
