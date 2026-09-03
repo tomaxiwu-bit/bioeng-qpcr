@@ -1,0 +1,96 @@
+[build-system]
+requires = ["setuptools>=77.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bioeng-qpcr"
+version = "0.5.1"
+description = "Auditable qPCR analysis engine with enzyme kinetics, fermentation kinetics, and FBA metabolic flux support"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+authors = [{name = "bioeng-qpcr contributors"}]
+keywords = ["qPCR", "MIQE", "bioinformatics", "validation", "auditable", "enzyme kinetics", "fermentation kinetics", "Monod", "FBA", "metabolic flux", "COBRApy"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "pandas>=2.0",
+    "click>=8.1",
+]
+
+[project.optional-dependencies]
+plot = ["matplotlib>=3.7"]
+mcp = [
+    "mcp>=2.0",
+    "pydantic>=2.0",
+    "matplotlib>=3.7",
+]
+widgets = [
+    "ipywidgets>=8.0",
+    "matplotlib>=3.7",
+]
+fba = [
+    "cobra>=0.26,<0.32",
+]
+gui = [
+    "PySide6>=6.6",
+    "matplotlib>=3.7",
+    "Pillow>=10.0",
+]
+desktop-build = [
+    "PySide6>=6.6",
+    "matplotlib>=3.7",
+    "Pillow>=10.0",
+    "cobra>=0.26,<0.32",
+    "pyinstaller>=6.0,<7",
+]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "matplotlib>=3.7",
+    "click>=8.1",
+    "ruff>=0.8",
+    "mcp>=2.0",
+    "pydantic>=2.0",
+    "ipywidgets>=8.0",
+    "cobra>=0.26,<0.32",
+    "PySide6>=6.6",
+    "Pillow>=10.0",
+]
+
+[project.scripts]
+bioeng-qpcr = "bioeng_qpcr.cli.main:cli"
+bioeng-qpcr-mcp = "bioeng_qpcr.mcp:main"
+bioeng-qpcr-gui = "bioeng_qpcr.gui.main_window:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+filterwarnings = [
+    "ignore:FigureCanvasAgg is non-interactive:UserWarning",
+    "ignore:builtin type Swig.* has no __module__ attribute:DeprecationWarning",
+]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]

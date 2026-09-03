@@ -1,0 +1,13 @@
+position,sample_name,target_name,cq,replicate_type,replicate_group
+A01,S1,GAPDH,20.5,technical,S1_GAPDH
+A02,S1,GAPDH,20.7,technical,S1_GAPDH
+A03,S1,GAPDH,20.6,technical,S1_GAPDH
+A04,S1,ACTB,18.3,technical,S1_ACTB
+A05,S1,ACTB,18.5,technical,S1_ACTB
+A06,S1,ACTB,18.4,technical,S1_ACTB
+A07,S2,GAPDH,21.0,technical,S2_GAPDH
+A08,S2,GAPDH,21.2,technical,S2_GAPDH
+A09,S2,GAPDH,20.9,technical,S2_GAPDH
+A10,S2,ACTB,19.1,technical,S2_ACTB
+A11,S2,ACTB,19.0,technical,S2_ACTB
+A12,S2,ACTB,19.2,technical,S2_ACTB

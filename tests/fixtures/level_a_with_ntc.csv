@@ -1,0 +1,9 @@
+position,sample_name,target_name,cq
+A01,S1,GAPDH,20.5
+A02,S1,ACTB,18.3
+A03,S2,GAPDH,21.0
+A04,S2,ACTB,19.1
+A05,S3,GAPDH,19.8
+A06,S3,ACTB,17.9
+A07,NTC,GAPDH,35.0
+A08,NTC,ACTB,Undetermined

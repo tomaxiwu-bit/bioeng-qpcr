@@ -1,0 +1,8 @@
+include LICENSE
+include README.md
+include conftest.py
+include pyproject.toml
+recursive-include tests *.py *.csv
+recursive-include src *.py
+recursive-include docs *.md
+recursive-include examples *.csv
