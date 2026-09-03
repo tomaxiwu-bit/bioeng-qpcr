@@ -20,6 +20,7 @@ and audited.
 - Explicit opt-in ΔCq, ΔΔCq, and Pfaffl compatibility methods
 - Strict CSV validation with row/column diagnostics and an auditable lenient mode
 - RDML 1.x ingestion (`.rdml`/`.rdm` archives, gzip, or XML) into the same pipeline
+- Chauvenet-criterion technical-replicate outlier screening with full statistical evidence
 - Four-state readiness rules: `PASS`, `WARN`, `FAIL`, `NOT_ASSESSABLE`
 - geNorm stability analysis and pairwise-variation reporting
 - Efficiency-corrected geNorm and model-based NormFinder stability scoring

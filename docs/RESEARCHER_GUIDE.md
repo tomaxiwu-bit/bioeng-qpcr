@@ -82,6 +82,32 @@ The rule set is a readiness subset, not the full MIQE checklist. MIQE 2.0
 emphasizes assay efficiency, sensitivity, transparent raw data, and appropriate
 normalization; see the [MIQE 2.0 update](https://academic.oup.com/clinchem/article/71/6/634/8119148).
 
+### Flagging suspect technical replicates
+
+Before averaging technical replicates, screen them for wells with a
+physical cause for a bad Cq (pipetting error, a bubble, an edge-effect
+well):
+
+```bash
+bioeng-qpcr outliers examples/researcher_example.csv
+```
+
+The command applies Chauvenet's criterion iteratively to every
+technical-replicate group: a well is flagged when the expected number of
+deviations at least that extreme falls below one half
+(`n · P(|Z| ≥ z) < 0.5`), and each flag records the z-score, tail
+probability, and threshold as evidence. Groups whose Cq standard
+deviation exceeds `--sd-trigger` (default 0.3) without a statistical flag
+are listed for manual review with their most deviant well as the
+candidate. Small honest caveat: with the sample standard deviation,
+groups of three or four wells are too small for Chauvenet to ever reject
+statistically — such groups can only produce review recommendations.
+
+Detection never modifies the data or the downstream analysis. Inspect the
+flagged wells (ideally their raw amplification curves), then either
+re-run them or document their exclusion yourself — the same command
+works on RDML files.
+
 ## 3. Calculate per-sample normalized quantities
 
 ```bash

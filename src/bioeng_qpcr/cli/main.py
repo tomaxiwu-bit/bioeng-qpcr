@@ -2,9 +2,10 @@
 
 This module provides a durable, non-Jupyter command-line interface to the
 bioeng-qpcr engine.  It wraps the IO, validation, calculations, provenance
-and plotting layers behind four sub-commands:
+and plotting layers behind these sub-commands:
 
 * ``validate``   -- run a MIQE readiness assessment on a tidy CSV.
+* ``outliers``   -- detect suspect technical-replicate wells (Chauvenet).
 * ``analyze``    -- run relative-quantification analysis (ΔΔCq / Pfaffl).
 * ``provenance`` -- emit a JSON provenance manifest for a dataset.
 * ``plot``       -- render fold-change bar plots or Cq heatmaps.
@@ -257,6 +258,131 @@ def validate(
 
     ctx = click.get_current_context()
     ctx.exit(1 if report.failures else 0)
+
+
+# ---------------------------------------------------------------------------
+# outliers
+# ---------------------------------------------------------------------------
+
+
+def _format_outlier_report(result: Any) -> str:
+    """Render a :class:`ReplicateOutlierResult` as human-readable text."""
+    lines = ["Technical-replicate outlier report (Chauvenet criterion)", ""]
+    lines.append(f"Parameters: sd-trigger={result.sd_trigger}, "
+                 f"min-group-size={result.min_group_size}")
+    lines.append(f"{result.summary()}")
+    lines.append("")
+
+    if result.chauvenet_groups:
+        lines.append("Chauvenet-rejected wells (statistical evidence):")
+        for group in result.chauvenet_groups:
+            for flag in group.chauvenet_flags:
+                lines.append(
+                    f"  {group.label}  well {flag.position}  "
+                    f"Cq={flag.cq:.2f}  z={flag.z_score:.2f}  "
+                    f"P={flag.tail_probability:.2e} < "
+                    f"{flag.threshold_probability:.3f}"
+                )
+        lines.append("")
+
+    if result.review_groups:
+        lines.append(
+            "Review recommended (spread exceeds trigger; heuristic, "
+            "no statistical flag):"
+        )
+        for group in result.review_groups:
+            candidate = (
+                f"  candidate well {group.review_candidate_position} "
+                f"({group.review_candidate_deviation:.2f} Cq from median)"
+                if group.review_candidate_position
+                else ""
+            )
+            lines.append(
+                f"  {group.label}  SD={group.std_cq:.2f}  n={group.n_wells}"
+                f"{candidate}"
+            )
+        lines.append("")
+
+    if not result.chauvenet_groups and not result.review_groups:
+        lines.append("No Chauvenet flags and no review recommendations.")
+    else:
+        lines.append(f"Groups passing: {result.n_pass}")
+    return "\n".join(lines)
+
+
+@cli.command()
+@click.argument(
+    "csv_path",
+    type=click.Path(dir_okay=False, path_type=str),
+)
+@click.option(
+    "--sd-trigger",
+    type=click.FloatRange(min=0),
+    default=0.3,
+    show_default=True,
+    help=(
+        "Cq standard deviation above which an unflagged replicate group "
+        "is marked for review."
+    ),
+)
+@click.option(
+    "--min-group-size",
+    type=click.IntRange(min=3),
+    default=3,
+    show_default=True,
+    help="Smallest technical-replicate group size assessed by Chauvenet.",
+)
+@click.option(
+    "--output",
+    "output_format",
+    type=click.Choice(["json", "text"]),
+    default="text",
+    show_default=True,
+    help="Report format.",
+)
+@click.option(
+    "--output-file",
+    type=click.Path(dir_okay=False, path_type=str),
+    default=None,
+    help="Write the report to this file instead of stdout.",
+)
+@click.option(
+    "--lenient",
+    is_flag=True,
+    help="Accept recoverable input problems and record them as diagnostics.",
+)
+def outliers(
+    csv_path: str,
+    sd_trigger: float,
+    min_group_size: int,
+    output_format: str,
+    output_file: str | None,
+    lenient: bool,
+) -> None:
+    """Identify suspect technical-replicate wells (recommendations only).
+
+    Applies Chauvenet's criterion iteratively to each technical-replicate
+    group and reports rejected wells with full statistical evidence.
+    Groups whose Cq spread exceeds the SD trigger without a statistical
+    flag are listed for manual review with their most deviant well.  The
+    input file is never modified and detected wells are never excluded
+    automatically.  The command exits 0 even when outliers are found:
+    findings are recommendations, not command failures.
+    """
+    from bioeng_qpcr.calculations import detect_replicate_outliers
+
+    experiment = _load_experiment(csv_path, strict=not lenient)
+    result = detect_replicate_outliers(
+        experiment,
+        min_group_size=min_group_size,
+        sd_trigger=sd_trigger,
+    )
+
+    if output_format == "json":
+        content = json.dumps(result.to_dict(), indent=2)
+    else:
+        content = _format_outlier_report(result)
+    _emit(content, output_file)
 
 
 # ---------------------------------------------------------------------------

@@ -58,6 +58,24 @@ def verify_rdml() -> None:
     print("RDML workflows OK")
 
 
+def verify_outliers() -> None:
+    from bioeng_qpcr.calculations import detect_replicate_outliers
+    from bioeng_qpcr.io import read_tidy_csv
+
+    experiment = read_tidy_csv(
+        EXAMPLES / "researcher_example.csv",
+        reference_targets=["GAPDH", "RPLP0"],
+    )
+    result = detect_replicate_outliers(experiment)
+    if result.n_groups == 0:
+        raise SystemExit("no technical replicate groups found in example data")
+    if result.total_flagged or result.review_groups:
+        raise SystemExit(
+            f"clean example data unexpectedly flagged: {result.summary()}"
+        )
+    print(f"Replicate outlier screening OK: {result.summary()}")
+
+
 def verify_enzyme_kinetics() -> None:
     import numpy as np
 
@@ -147,6 +165,7 @@ def verify_fba() -> None:
 def main() -> int:
     verify_qpcr()
     verify_rdml()
+    verify_outliers()
     verify_enzyme_kinetics()
     verify_fermentation()
     verify_fba()

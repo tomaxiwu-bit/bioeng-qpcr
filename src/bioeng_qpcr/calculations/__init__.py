@@ -9,6 +9,8 @@ the :class:`~bioeng_qpcr.domain.entities.Experiment` domain model:
   fold change relative to a control sample (assumes 100 % efficiency).
 * **Pfaffl** (:mod:`~bioeng_qpcr.calculations.pfaffl`) -- efficiency-corrected
   relative quantification.
+* **Replicate outliers** (:mod:`~bioeng_qpcr.calculations.outliers`) --
+  Chauvenet-criterion detection of suspect technical-replicate wells.
 * **Efficiency fitting** (:mod:`~bioeng_qpcr.calculations.efficiency`) --
   estimate amplification efficiency from standard curves or amplification
   traces.
@@ -42,6 +44,12 @@ from bioeng_qpcr.calculations.normalized_quantity import (
     normalized_quantity,
     normalized_quantity_all,
 )
+from bioeng_qpcr.calculations.outliers import (
+    ChauvenetFlag,
+    ReplicateGroupReport,
+    ReplicateOutlierResult,
+    detect_replicate_outliers,
+)
 from bioeng_qpcr.calculations.pfaffl import (
     PfafflResult,
     pfaffl,
@@ -73,6 +81,11 @@ __all__ = [
     "normalized_quantity",
     "normalized_quantity_all",
     "compare_groups",
+    # Technical-replicate outlier detection
+    "ChauvenetFlag",
+    "ReplicateGroupReport",
+    "ReplicateOutlierResult",
+    "detect_replicate_outliers",
     # Efficiency
     "EfficiencyResult",
     "fit_efficiency_from_standard_curve",

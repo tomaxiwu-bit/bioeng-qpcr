@@ -780,3 +780,99 @@ class TestRdmlInput:
 
         assert result.exit_code == 1
         assert "rdml" in result.output.lower()
+
+
+# ---------------------------------------------------------------------------
+# outliers
+# ---------------------------------------------------------------------------
+
+#: Technical-replicate groups: one tight group of six, one clean pair.
+OUTLIER_CSV = (
+    "position,sample_name,target_name,cq,efficiency,is_reference,"
+    "replicate_type,replicate_group\n"
+    "A01,S1,GAPDH,20.01,1.0,true,technical,S1_GAPDH\n"
+    "A02,S1,GAPDH,20.02,1.0,true,technical,S1_GAPDH\n"
+    "A03,S1,GAPDH,20.00,1.0,true,technical,S1_GAPDH\n"
+    "A04,S1,GAPDH,20.03,1.0,true,technical,S1_GAPDH\n"
+    "A05,S1,GAPDH,20.02,1.0,true,technical,S1_GAPDH\n"
+    "A06,S1,GAPDH,21.30,1.0,true,technical,S1_GAPDH\n"
+    "B01,S2,GAPDH,19.90,1.0,true,technical,S2_GAPDH\n"
+    "B02,S2,GAPDH,19.91,1.0,true,technical,S2_GAPDH\n"
+)
+
+
+class TestOutliers:
+    """Tests for the ``outliers`` sub-command."""
+
+    def test_outliers_text_reports_flag(self, runner: CliRunner) -> None:
+        with runner.isolated_filesystem():
+            csv_path = _write_csv("data.csv", OUTLIER_CSV)
+            result = runner.invoke(cli, ["outliers", csv_path])
+
+        assert result.exit_code == 0
+        assert "A06" in result.output
+        assert "Chauvenet-rejected" in result.output
+        assert "Groups passing: 1" in result.output
+
+    def test_outliers_json_output(self, runner: CliRunner) -> None:
+        with runner.isolated_filesystem():
+            csv_path = _write_csv("data.csv", OUTLIER_CSV)
+            result = runner.invoke(
+                cli, ["outliers", csv_path, "--output", "json"]
+            )
+
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["summary"]["total_flagged_wells"] == 1
+        assert data["summary"]["flagged_positions"] == ["A06"]
+        flagged = data["groups"][0]["chauvenet_flags"][0]
+        assert flagged["position"] == "A06"
+        assert flagged["tail_probability"] < flagged["threshold_probability"]
+
+    def test_outliers_exit_zero_when_clean(self, runner: CliRunner) -> None:
+        with runner.isolated_filesystem():
+            csv_path = _write_csv("data.csv", SAMPLE_CSV)
+            result = runner.invoke(cli, ["outliers", csv_path])
+
+        assert result.exit_code == 0
+        assert "No Chauvenet flags" in result.output
+
+    def test_outliers_rdml_input(self, runner: CliRunner) -> None:
+        rdml_example = (
+            Path(__file__).resolve().parents[2] / "examples" / "rdml_example.xml"
+        )
+        result = runner.invoke(cli, ["outliers", str(rdml_example)])
+
+        assert result.exit_code == 0
+        assert "group(s) assessed" in result.output
+
+    def test_outliers_min_group_size_option(self, runner: CliRunner) -> None:
+        with runner.isolated_filesystem():
+            csv_path = _write_csv("data.csv", OUTLIER_CSV)
+            result = runner.invoke(
+                cli,
+                [
+                    "outliers",
+                    csv_path,
+                    "--min-group-size",
+                    "3",
+                    "--sd-trigger",
+                    "0.0",
+                ],
+            )
+
+        assert result.exit_code == 0
+        assert "Review recommended" in result.output
+
+    def test_outliers_output_file(self, runner: CliRunner) -> None:
+        with runner.isolated_filesystem():
+            csv_path = _write_csv("data.csv", OUTLIER_CSV)
+            out_path = "outliers.json"
+            result = runner.invoke(
+                cli,
+                ["outliers", csv_path, "--output", "json", "--output-file", out_path],
+            )
+            assert result.exit_code == 0
+            assert os.path.exists(out_path)
+            data = json.loads(Path(out_path).read_text(encoding="utf-8"))
+            assert data["summary"]["flagged_positions"] == ["A06"]
