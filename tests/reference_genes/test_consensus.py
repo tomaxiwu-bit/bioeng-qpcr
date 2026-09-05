@@ -11,6 +11,8 @@ Uses synthetic experiments with known Cq values to verify:
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from bioeng_qpcr.domain.entities import Assay, Experiment, Sample, Well
@@ -280,3 +282,94 @@ class TestConsensusErrors:
         )
         with pytest.raises(ValueError):
             consensus_ranking(exp)
+
+
+# ---------------------------------------------------------------------------
+# Selectable methods
+# ---------------------------------------------------------------------------
+
+
+class TestConsensusSelectableMethods:
+    """The consensus can aggregate an arbitrary subset of the stability
+    algorithms via the ``methods`` argument."""
+
+    def _exp(self) -> Experiment:
+        return _make_experiment(
+            {
+                "ACTB": [20.0, 20.0, 20.0, 20.0],
+                "GAPDH": [19.0, 21.0, 22.0, 18.0],
+                "TUBULIN": [22.0, 18.0, 19.0, 21.0],
+            }
+        )
+
+    def test_default_methods_unchanged(self) -> None:
+        result = consensus_ranking(self._exp())
+        assert result.methods == ("genorm", "normfinder")
+        assert result.delta_ct_ranking == []
+        assert result.bestkeeper_ranking == []
+
+    def test_delta_ct_and_bestkeeper_rankings_populated(self) -> None:
+        result = consensus_ranking(
+            self._exp(),
+            methods=("genorm", "delta_ct", "bestkeeper"),
+        )
+        assert sorted(result.delta_ct_ranking) == ["ACTB", "GAPDH", "TUBULIN"]
+        assert sorted(result.bestkeeper_ranking) == ["ACTB", "GAPDH", "TUBULIN"]
+        assert result.normfinder_ranking == []
+
+    def test_scores_average_all_selected_methods(self) -> None:
+        result = consensus_ranking(
+            self._exp(),
+            methods=("delta_ct", "bestkeeper"),
+        )
+        for gene in ("ACTB", "GAPDH", "TUBULIN"):
+            dc_rank = result.delta_ct_ranking.index(gene) + 1
+            bk_rank = result.bestkeeper_ranking.index(gene) + 1
+            assert result.consensus_scores[gene] == pytest.approx(
+                (dc_rank + bk_rank) / 2.0
+            )
+
+    def test_bestkeeper_only_needs_no_efficiency(self) -> None:
+        # A dataset where efficiency is missing for every candidate can still
+        # be ranked by BestKeeper alone.
+        exp = _make_experiment(
+            {
+                "ACTB": [20.0, 20.0, 20.0],
+                "GAPDH": [19.0, 21.0, 22.0],
+            },
+        )
+        # Replace assays with efficiency-less copies so bestkeeper-only works.
+        exp.assays = {
+            name: replace(assay, efficiency=None)
+            for name, assay in exp.assays.items()
+        }
+        result = consensus_ranking(exp, methods=("bestkeeper",))
+        assert sorted(result.ranking) == ["ACTB", "GAPDH"]
+
+    def test_mixing_bestkeeper_with_efficiency_method_requires_efficiency(
+        self,
+    ) -> None:
+        exp = _make_experiment(
+            {
+                "ACTB": [20.0, 20.0, 20.0],
+                "GAPDH": [19.0, 21.0, 22.0],
+            },
+        )
+        exp.assays = {
+            name: replace(assay, efficiency=None)
+            for name, assay in exp.assays.items()
+        }
+        with pytest.raises(ValueError):
+            consensus_ranking(exp, methods=("bestkeeper", "delta_ct"))
+
+    def test_unknown_method_raises(self) -> None:
+        with pytest.raises(ValueError):
+            consensus_ranking(self._exp(), methods=("genorm", "fake"))
+
+    def test_empty_methods_raises(self) -> None:
+        with pytest.raises(ValueError):
+            consensus_ranking(self._exp(), methods=())
+
+    def test_no_recommendation_without_ge_norm(self) -> None:
+        result = consensus_ranking(self._exp(), methods=("delta_ct",))
+        assert result.recommended_genes == []

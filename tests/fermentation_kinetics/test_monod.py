@@ -4,16 +4,19 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from scipy.stats import chi2
 
 from bioeng_qpcr.fermentation_kinetics.monod import (
     MonodFitResult,
+    ProfileLikelihoodResult,
     batch_fermentation_ode,
     fit_monod,
     monod_equation,
+    monod_profile_likelihood_ci,
     solve_batch_fermentation,
 )
 
-from .conftest import make_fermentation_data
+from .conftest import make_fermentation_data, make_noisy_fermentation_data
 
 
 class TestMonodEquation:
@@ -263,3 +266,184 @@ class TestReadFermentationCsv:
 
         with pytest.raises(ValueError, match="substrate"):
             read_fermentation_csv(csv_path)
+
+
+class TestMonodProfileLikelihoodCi:
+    @staticmethod
+    def _clean_data():
+        """Well-conditioned data: all three parameters should profile cleanly."""
+        return make_fermentation_data(noise_level=0.005, n_points=20)
+
+    def test_returns_result_type(self):
+        data = self._clean_data()
+        fit = fit_monod(*data)
+        profile = monod_profile_likelihood_ci(
+            *data, mu_max=fit.mu_max, ks=fit.ks, yxs=fit.yxs
+        )
+        assert isinstance(profile, ProfileLikelihoodResult)
+
+    def test_intervals_contain_fitted_values(self):
+        data = self._clean_data()
+        fit = fit_monod(*data)
+        profile = monod_profile_likelihood_ci(
+            *data, mu_max=fit.mu_max, ks=fit.ks, yxs=fit.yxs
+        )
+        # μmax (with its short, monotonic profile) must always invert.
+        assert profile.mu_max_ci is not None
+        assert profile.mu_max_ci[0] <= fit.mu_max <= profile.mu_max_ci[1]
+        # Ks/Yxs have flatter profiles; an interval that cannot be inverted is
+        # honestly reported as None together with a diagnosable warning.
+        for interval, name in (
+            (profile.ks_ci, "ks"),
+            (profile.yxs_ci, "yxs"),
+        ):
+            if interval is not None:
+                assert interval[0] <= getattr(fit, name) <= interval[1]
+            else:
+                assert any(
+                    name in warning
+                    for warning in profile.warnings
+                )
+
+    def test_intervals_are_positive_and_ordered(self):
+        data = self._clean_data()
+        fit = fit_monod(*data)
+        profile = monod_profile_likelihood_ci(
+            *data, mu_max=fit.mu_max, ks=fit.ks, yxs=fit.yxs
+        )
+        for interval, name in (
+            (profile.mu_max_ci, "mu_max"),
+            (profile.ks_ci, "ks"),
+            (profile.yxs_ci, "yxs"),
+        ):
+            if interval is None:
+                assert any(name in warning for warning in profile.warnings)
+            else:
+                assert 0 < interval[0] <= interval[1]
+
+    def test_default_chi2_critical(self):
+        data = make_noisy_fermentation_data()
+        fit = fit_monod(*data)
+        profile = monod_profile_likelihood_ci(
+            *data, mu_max=fit.mu_max, ks=fit.ks, yxs=fit.yxs
+        )
+        assert profile.chi2_critical == pytest.approx(
+            chi2.ppf(0.95, df=1), rel=1e-6
+        )
+
+    def test_custom_alpha_changes_critical_value(self):
+        data = make_noisy_fermentation_data()
+        fit = fit_monod(*data)
+        profile = monod_profile_likelihood_ci(
+            *data,
+            mu_max=fit.mu_max,
+            ks=fit.ks,
+            yxs=fit.yxs,
+            alpha=0.10,
+        )
+        assert profile.chi2_critical == pytest.approx(
+            chi2.ppf(0.90, df=1), rel=1e-6
+        )
+
+    def test_n_points_and_variance_recorded(self):
+        data = make_noisy_fermentation_data(n_points=16)
+        fit = fit_monod(*data)
+        profile = monod_profile_likelihood_ci(
+            *data, mu_max=fit.mu_max, ks=fit.ks, yxs=fit.yxs
+        )
+        assert profile.n_points == 16
+        assert profile.residual_variance > 0
+
+    def test_more_noise_widens_intervals(self):
+        clean = make_fermentation_data(noise_level=0.005, n_points=20)
+        noisy = make_fermentation_data(noise_level=0.06, n_points=20)
+
+        clean_fit = fit_monod(*clean)
+        noisy_fit = fit_monod(*noisy)
+        clean_profile = monod_profile_likelihood_ci(
+            *clean,
+            mu_max=clean_fit.mu_max,
+            ks=clean_fit.ks,
+            yxs=clean_fit.yxs,
+        )
+        noisy_profile = monod_profile_likelihood_ci(
+            *noisy,
+            mu_max=noisy_fit.mu_max,
+            ks=noisy_fit.ks,
+            yxs=noisy_fit.yxs,
+        )
+        assert clean_profile.mu_max_ci is not None
+        assert noisy_profile.mu_max_ci is not None
+        clean_width = clean_profile.mu_max_ci[1] - clean_profile.mu_max_ci[0]
+        noisy_width = noisy_profile.mu_max_ci[1] - noisy_profile.mu_max_ci[0]
+        assert noisy_width > clean_width
+
+    def test_constant_data_pushes_mu_max_to_low_boundary(self):
+        """Uniform responses give no signal for growth, so μmax collapses onto
+        its positive lower search bound and a boundary warning is recorded."""
+        time = np.arange(8.0)
+        biomass = np.full(8, 0.1)
+        substrate = np.full(8, 10.0)
+        profile = monod_profile_likelihood_ci(
+            time, biomass, substrate, mu_max=0.5, ks=2.0, yxs=0.5
+        )
+        assert any("boundary" in warning for warning in profile.warnings)
+
+    def test_non_invertible_interval_reports_warning(self):
+        """Weakly identifiable data can yield a non-invertible profile; the
+        result then reports ``None`` for that interval plus a warning."""
+        data = make_noisy_fermentation_data()
+        fit = fit_monod(*data)
+        profile = monod_profile_likelihood_ci(
+            *data, mu_max=fit.mu_max, ks=fit.ks, yxs=fit.yxs
+        )
+        assert any(
+            ci is None for ci in (profile.mu_max_ci, profile.ks_ci, profile.yxs_ci)
+        ) or any(
+            "not inverted" in warning or "boundary" in warning
+            for warning in profile.warnings
+        )
+
+
+class TestMonodProfileLikelihoodErrors:
+    def _data(self):
+        return make_noisy_fermentation_data()
+
+    def test_mismatched_shapes(self):
+        time, biomass, substrate = self._data()
+        with pytest.raises(ValueError, match="same shape"):
+            monod_profile_likelihood_ci(
+                time, biomass[:-1], substrate, mu_max=0.5, ks=2.0, yxs=0.5
+            )
+
+    def test_too_few_points(self):
+        time = np.array([0.0, 1.0, 2.0, 3.0])
+        biomass = np.array([0.1, 0.2, 0.3, 0.4])
+        substrate = np.array([10.0, 9.0, 8.0, 7.0])
+        with pytest.raises(ValueError, match="5"):
+            monod_profile_likelihood_ci(
+                time, biomass, substrate, mu_max=0.5, ks=2.0, yxs=0.5
+            )
+
+    def test_non_positive_fitted_parameter(self):
+        time, biomass, substrate = self._data()
+        with pytest.raises(ValueError, match="finite and positive"):
+            monod_profile_likelihood_ci(
+                time, biomass, substrate, mu_max=0.0, ks=2.0, yxs=0.5
+            )
+
+    def test_bad_alpha(self):
+        time, biomass, substrate = self._data()
+        with pytest.raises(ValueError, match="alpha"):
+            monod_profile_likelihood_ci(
+                time, biomass, substrate,
+                mu_max=0.5, ks=2.0, yxs=0.5, alpha=1.5,
+            )
+
+    def test_negative_biomass(self):
+        time, biomass, substrate = self._data()
+        biomass = np.minimum(biomass, 0.0) - 1.0
+        with pytest.raises(ValueError, match="non-negative"):
+            monod_profile_likelihood_ci(
+                time, biomass, substrate, mu_max=0.5, ks=2.0, yxs=0.5
+            )

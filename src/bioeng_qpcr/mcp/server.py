@@ -49,9 +49,16 @@ from bioeng_qpcr.fermentation_kinetics import (
     validate_data_sufficiency,
     validate_mu_max_range,
 )
+from bioeng_qpcr.fermentation_kinetics.monod import monod_profile_likelihood_ci
 from bioeng_qpcr.io import CSVValidationError, read_tidy_csv
 from bioeng_qpcr.provenance import ProvenanceManifest
-from bioeng_qpcr.reference_genes import consensus_ranking, genorm, normfinder
+from bioeng_qpcr.reference_genes import (
+    bestkeeper,
+    consensus_ranking,
+    delta_ct,
+    genorm,
+    normfinder,
+)
 from bioeng_qpcr.reporting import build_research_report
 from bioeng_qpcr.validation import RuleExecutionError, ValidationEngine
 
@@ -317,11 +324,33 @@ class QpcrReferenceStabilityInput(BaseModel):
             "NormFinder and consensus require at least three candidates."
         ),
     )
-    method: Literal["genorm", "normfinder", "consensus"] = Field(
+    method: Literal[
+        "genorm", "normfinder", "delta_ct", "bestkeeper", "consensus"
+    ] = Field(
         default="consensus",
         description=(
-            "Stability algorithm. 'consensus' aggregates geNorm and "
-            "NormFinder rankings into a single recommendation."
+            "Stability algorithm. 'consensus' aggregates the methods "
+            "selected in ``methods`` (default geNorm + NormFinder) into a "
+            "single recommendation. 'genorm' (geNorm), 'normfinder' "
+            "(model-based NormFinder), 'delta_ct' (delta-Ct, Silver et al.) "
+            "and 'bestkeeper' (BestKeeper, Pfaffl et al.) each return their "
+            "native stability measure."
+        ),
+    )
+    methods: list[Literal["genorm", "normfinder", "delta_ct", "bestkeeper"]] = Field(
+        default_factory=lambda: ["genorm", "normfinder"],
+        description=(
+            "Only used when ``method`` is 'consensus': the stability "
+            "algorithms to aggregate. At least one method is required; "
+            "duplicates are ignored."
+        ),
+    )
+    sample_groups: dict[str, str] | None = Field(
+        default=None,
+        description=(
+            "Optional mapping from sample name to group label used by "
+            "model-based NormFinder. When omitted, Sample.group values (or "
+            "'ungrouped') are used."
         ),
     )
 
@@ -413,6 +442,25 @@ class FermentFitMonodInput(BaseModel):
             "Path to a tidy fermentation-kinetics CSV with columns "
             "'time', 'biomass', and 'substrate'."
         )
+    )
+    profile_likelihood: bool = Field(
+        default=False,
+        description=(
+            "When True, additionally compute profile-likelihood 95% "
+            "confidence intervals for μmax, Ks and Yxs. These asymmetric "
+            "intervals remain valid for weakly identifiable parameters "
+            "where the log-normal (Wald) approximation can be misleading."
+        ),
+    )
+    alpha: float = Field(
+        default=0.05,
+        gt=0.0,
+        lt=1.0,
+        description=(
+            "Only used when ``profile_likelihood`` is True: the significance "
+            "level for the likelihood-ratio intervals (default 0.05 for 95% "
+            "intervals)."
+        ),
     )
 
 
@@ -666,11 +714,12 @@ async def qpcr_get_provenance(
 async def qpcr_reference_stability(
     params: QpcrReferenceStabilityInput,
 ) -> dict[str, Any]:
-    """Evaluate reference-gene stability with geNorm, NormFinder or consensus.
+    """Evaluate reference-gene stability with a supported algorithm.
 
     Returns the stability ranking and per-gene measures for the selected
-    algorithm; the consensus method also reports the underlying geNorm and
-    NormFinder rankings.
+    algorithm. For 'consensus', the ``methods`` field chooses the ranking
+    methods to aggregate (default geNorm + NormFinder); the underlying
+    per-method rankings are reported alongside the aggregated score.
     """
     try:
         experiment = _load_experiment(params.csv_path, params.reference_targets)
@@ -678,8 +727,21 @@ async def qpcr_reference_stability(
             result = genorm(experiment, params.reference_targets)
         elif params.method == "normfinder":
             result = normfinder(experiment, params.reference_targets)
+        elif params.method == "delta_ct":
+            result = delta_ct(experiment, params.reference_targets)
+        elif params.method == "bestkeeper":
+            result = bestkeeper(experiment, params.reference_targets)
         else:  # consensus
-            result = consensus_ranking(experiment, params.reference_targets)
+            result = consensus_ranking(
+                experiment,
+                params.reference_targets,
+                sample_groups=params.sample_groups,
+                methods=(
+                    tuple(params.methods)
+                    if params.methods
+                    else ("genorm", "normfinder")
+                ),
+            )
         return {**asdict(result), "method": params.method}
     except _TOOL_ERRORS as exc:
         return _error_response(exc)
@@ -931,7 +993,9 @@ async def ferment_fit_monod(
     Reads time/biomass/substrate data from a CSV, fits μmax, Ks, and Yxs
     via nonlinear ODE regression, runs parameter identifiability analysis
     (Fisher Information Matrix), and validates FERM-001 (μmax physical
-    range) and FERM-002 (data sufficiency) rules.
+    range) and FERM-002 (data sufficiency) rules.  When ``profile_likelihood``
+    is True, likelihood-ratio confidence intervals are included for each
+    parameter.
     """
     try:
         time, biomass, substrate = read_fermentation_csv(params.csv_path)
@@ -939,7 +1003,7 @@ async def ferment_fit_monod(
         ident = analyze_identifiability(result, time, biomass, substrate)
         mu_max_check = validate_mu_max_range(result.mu_max)
         data_check = validate_data_sufficiency(time, biomass, substrate)
-        return {
+        response: dict[str, Any] = {
             "fit": {
                 "mu_max": result.mu_max,
                 "ks": result.ks,
@@ -982,6 +1046,33 @@ async def ferment_fit_monod(
                 },
             },
         }
+        if params.profile_likelihood:
+            profile = monod_profile_likelihood_ci(
+                time,
+                biomass,
+                substrate,
+                mu_max=result.mu_max,
+                ks=result.ks,
+                yxs=result.yxs,
+                alpha=params.alpha,
+            )
+            response["profile_likelihood"] = {
+                "mu_max_ci": (
+                    list(profile.mu_max_ci) if profile.mu_max_ci else None
+                ),
+                "ks_ci": (
+                    list(profile.ks_ci) if profile.ks_ci else None
+                ),
+                "yxs_ci": (
+                    list(profile.yxs_ci) if profile.yxs_ci else None
+                ),
+                "chi2_critical": profile.chi2_critical,
+                "alpha": params.alpha,
+                "residual_variance": profile.residual_variance,
+                "n_points": profile.n_points,
+                "warnings": list(profile.warnings),
+            }
+        return response
     except _TOOL_ERRORS as exc:
         return _error_response(exc)
 

@@ -121,9 +121,14 @@ bioeng-qpcr analyze examples/researcher_example.csv \
 The default calculation uses measured efficiency and the geometric mean of
 the selected reference quantities. Reference-gene stability must be justified
 for the actual tissue, treatment, and assay. Multiple reference genes alone do
-not establish stability. The package contains geNorm and a model-based
-NormFinder implementation benchmarked against the Bioconductor NormqPCR Colon
-reference values. NormFinder and the consensus method require at least three
+not establish stability. The package provides a reference-gene stability
+algorithm family:
+`genorm`, a model-based `normfinder` benchmarked against the Bioconductor
+NormqPCR Colon reference values, `delta_ct` (the pairwise-delta-Ct estimator of
+Silver et al. 2006), and `bestkeeper` (the raw-Cq index/Pearson approach of
+Pfaffl et al. 2004). `consensus_ranking` then aggregates any chosen combination
+of these methods into a single recommendation, so you are not forced to trust
+one algorithm. NormFinder and the consensus method require at least three
 candidate genes. Both geNorm and NormFinder require measured candidate-assay
 efficiencies and apply the same efficiency-corrected log-quantity transform as
 the downstream normalization. The earlier descriptive score remains available
@@ -285,6 +290,7 @@ parameters are actually identifiable:
 from bioeng_qpcr.fermentation_kinetics import (
     analyze_identifiability,
     fit_monod,
+    monod_profile_likelihood_ci,
     read_fermentation_csv,
     validate_data_sufficiency,
     validate_mu_max_range,
@@ -297,6 +303,12 @@ result = fit_monod(time, biomass, substrate)
 
 print(result.mu_max, result.ks, result.yxs)
 print(result.mu_max_ci, result.ks_ci, result.yxs_ci)
+
+profile = monod_profile_likelihood_ci(
+    time, biomass, substrate,
+    mu_max=result.mu_max, ks=result.ks, yxs=result.yxs,
+)
+print(profile.mu_max_ci, profile.ks_ci, profile.yxs_ci)
 
 mu_check = validate_mu_max_range(result.mu_max)  # physical upper bound
 data_check = validate_data_sufficiency(time, biomass, substrate)

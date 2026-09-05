@@ -22,7 +22,9 @@ and audited.
 - RDML 1.x ingestion (`.rdml`/`.rdm` archives, gzip, or XML) into the same pipeline
 - Chauvenet-criterion technical-replicate outlier screening with full statistical evidence
 - Four-state readiness rules: `PASS`, `WARN`, `FAIL`, `NOT_ASSESSABLE`
-- geNorm stability analysis and pairwise-variation reporting
+- Reference-gene stability algorithm family: geNorm, model-based NormFinder,
+  delta-Ct (Silver et al. 2006), and BestKeeper (Pfaffl et al. 2004), plus a
+  rank-aggregated consensus over any chosen combination
 - Efficiency-corrected geNorm and model-based NormFinder stability scoring
 - Standard-curve efficiency fitting
 - Combined HTML/JSON researcher reports, provenance manifests, CLI, and plots
@@ -210,9 +212,10 @@ is explicitly requested.
   evidence.
 - Enzyme-inhibition classification remains a trend-based screening method,
   not a substitute for global nonlinear fitting and model selection.
-- Monod confidence intervals use scaled residuals and a log-parameter Wald-t
-  approximation. Profile-likelihood intervals remain preferable when
-  parameters are weakly identifiable.
+- Monod fitting reports log-parameter Wald-t confidence intervals, and a
+  dedicated profile-likelihood routine (likelihood-ratio inversion) is
+  available when parameters are weakly identifiable and the Wald
+  approximation is unreliable.
 - Desktop cancellation is cooperative. It keeps the interface responsive and
   discards late results, but an active SciPy or COBRA native solver call may
   need to finish before the worker stops.
@@ -229,14 +232,14 @@ src/bioeng_qpcr/
 ├── domain/                  Experiment, Sample, Assay, Well, RawTrace
 ├── io/                      strict tidy CSV ingestion and diagnostics
 ├── calculations/            normalized quantities, ΔCq, ΔΔCq, Pfaffl, efficiency
-├── reference_genes/         geNorm, model-based NormFinder, consensus ranking
+├── reference_genes/         geNorm, NormFinder, delta-Ct, BestKeeper, consensus ranking
 ├── validation/              rules, engine, and readiness reports
 ├── statistics/              intervals and replicate-aware models
 ├── provenance/              hashes, versions, and parameters
 ├── plotting/                matplotlib-based plots
 ├── reporting/               combined researcher HTML/JSON report
 ├── enzyme_kinetics/         Michaelis-Menten fitting, inhibition classification
-├── fermentation_kinetics/   Monod fitting, identifiability, ODE solving
+├── fermentation_kinetics/   Monod fitting, profile-likelihood CI, identifiability, ODE solving
 ├── metabolic_flux/          COBRApy FBA, blocked reactions, dead-end detection
 ├── cli/                     durable command-line interface
 ├── gui/                     PySide6 desktop application

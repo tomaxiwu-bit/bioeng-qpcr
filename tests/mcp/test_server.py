@@ -360,6 +360,50 @@ class TestQpcrReferenceStability:
         )
         assert result["method"] == "consensus"
 
+    def test_stability_delta_ct(self):
+        result = _run(
+            qpcr_reference_stability(
+                QpcrReferenceStabilityInput(
+                    csv_path=EXAMPLE_CSV,
+                    reference_targets=[*_REFS, _TARGET],
+                    method="delta_ct",
+                )
+            )
+        )
+        assert result["method"] == "delta_ct"
+        assert "stability_values" in result
+        assert "pairwise_sd" in result
+        assert "consensus_scores" not in result
+
+    def test_stability_bestkeeper(self):
+        result = _run(
+            qpcr_reference_stability(
+                QpcrReferenceStabilityInput(
+                    csv_path=EXAMPLE_CSV,
+                    reference_targets=[*_REFS, _TARGET],
+                    method="bestkeeper",
+                )
+            )
+        )
+        assert result["method"] == "bestkeeper"
+        assert "bestkeeper_index" in result
+        assert "pearson_r" in result
+
+    def test_stability_consensus_custom_methods(self):
+        result = _run(
+            qpcr_reference_stability(
+                QpcrReferenceStabilityInput(
+                    csv_path=EXAMPLE_CSV,
+                    reference_targets=[*_REFS, _TARGET],
+                    method="consensus",
+                    methods=["delta_ct", "bestkeeper"],
+                )
+            )
+        )
+        assert result["delta_ct_ranking"] is not None
+        assert result["bestkeeper_ranking"] is not None
+        assert "consensus_scores" in result
+
 
 # ---------------------------------------------------------------------------
 # qpcr_fit_efficiency
@@ -695,6 +739,31 @@ class TestFermentFitMonod:
             ferment_fit_monod(FermentFitMonodInput(csv_path="nonexistent.csv"))
         )
         assert "error" in result
+
+    def test_fit_omit_profile_by_default(self):
+        result = _run(
+            ferment_fit_monod(FermentFitMonodInput(csv_path=FERMENTATION_CSV))
+        )
+        assert "profile_likelihood" not in result
+
+    def test_fit_profile_likelihood_flag(self):
+        result = _run(
+            ferment_fit_monod(
+                FermentFitMonodInput(
+                    csv_path=FERMENTATION_CSV,
+                    profile_likelihood=True,
+                )
+            )
+        )
+        assert "profile_likelihood" in result
+        profile = result["profile_likelihood"]
+        assert "mu_max_ci" in profile
+        assert "ks_ci" in profile
+        assert "yxs_ci" in profile
+        assert "chi2_critical" in profile
+        assert profile["alpha"] == 0.05
+        assert profile["n_points"] == 12
+        assert "warnings" in profile
 
 
 # ---------------------------------------------------------------------------

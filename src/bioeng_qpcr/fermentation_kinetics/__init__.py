@@ -13,9 +13,11 @@ from bioeng_qpcr.fermentation_kinetics.identifiability import (
 )
 from bioeng_qpcr.fermentation_kinetics.monod import (
     MonodFitResult,
+    ProfileLikelihoodResult,
     batch_fermentation_ode,
     fit_monod,
     monod_equation,
+    monod_profile_likelihood_ci,
     read_fermentation_csv,
     solve_batch_fermentation,
 )
@@ -32,10 +34,12 @@ __all__ = [
     "IdentifiabilityResult",
     # Monod
     "MonodFitResult",
+    "ProfileLikelihoodResult",
     "analyze_identifiability",
     "batch_fermentation_ode",
     "fit_monod",
     "monod_equation",
+    "monod_profile_likelihood_ci",
     "read_fermentation_csv",
     "solve_batch_fermentation",
     "validate_data_sufficiency",

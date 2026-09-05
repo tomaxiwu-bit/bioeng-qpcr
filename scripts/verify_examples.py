@@ -119,10 +119,39 @@ def verify_enzyme_kinetics() -> None:
     )
 
 
+def verify_reference_gene_family() -> None:
+    from bioeng_qpcr.io import read_tidy_csv
+    from bioeng_qpcr.reference_genes import (
+        bestkeeper,
+        consensus_ranking,
+        delta_ct,
+    )
+
+    experiment = read_tidy_csv(
+        EXAMPLES / "researcher_example.csv",
+        reference_targets=["GAPDH", "RPLP0"],
+    )
+    candidates = ["GAPDH", "RPLP0"]
+    delta = delta_ct(experiment, candidates)
+    keeper = bestkeeper(experiment, candidates)
+    cross = consensus_ranking(
+        experiment, candidates,
+        methods=("delta_ct", "bestkeeper", "genorm"),
+    )
+    if len(delta.ranking) != 2 or len(keeper.ranking) != 2:
+        raise SystemExit("reference-gene family did not rank all candidates")
+    if len(cross.ranking) != 2:
+        raise SystemExit("consensus aggregation did not unify the family")
+    print(f"delta-Ct OK: {delta.ranking}")
+    print(f"BestKeeper OK: {keeper.ranking}")
+    print(f"Consensus(cross-family) OK: {cross.ranking}")
+
+
 def verify_fermentation() -> None:
     from bioeng_qpcr.fermentation_kinetics import (
         analyze_identifiability,
         fit_monod,
+        monod_profile_likelihood_ci,
         read_fermentation_csv,
         validate_data_sufficiency,
         validate_mu_max_range,
@@ -139,6 +168,20 @@ def verify_fermentation() -> None:
     identifiability = analyze_identifiability(result, time, biomass, substrate)
     print(f"Monod fit OK: mu_max={result.mu_max:.4f}, Ks={result.ks:.4f}")
     print(f"Identifiability OK: {identifiability}")
+
+    profile = monod_profile_likelihood_ci(
+        time, biomass, substrate,
+        mu_max=result.mu_max, ks=result.ks, yxs=result.yxs,
+    )
+    if profile.mu_max_ci is None:
+        raise SystemExit("mu_max profile-likelihood interval failed to invert")
+    lo, hi = profile.mu_max_ci
+    if not lo <= result.mu_max <= hi:
+        raise SystemExit("mu_max outside its own profile-likelihood interval")
+    print(
+        f"Profile likelihood OK: mu_max 95% CI = [{lo:.4f}, {hi:.4f}], "
+        f"chi2_crit={profile.chi2_critical:.2f}"
+    )
 
 
 def verify_fba() -> None:
@@ -167,6 +210,7 @@ def main() -> int:
     verify_rdml()
     verify_outliers()
     verify_enzyme_kinetics()
+    verify_reference_gene_family()
     verify_fermentation()
     verify_fba()
     print("All example workflows verified.")

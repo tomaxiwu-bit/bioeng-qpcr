@@ -17,17 +17,21 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 from scipy.integrate import solve_ivp
-from scipy.optimize import least_squares
+from scipy.optimize import brentq, least_squares
+from scipy.stats import chi2
 from scipy.stats import t as student_t
 
 __all__ = [
     "MonodFitResult",
+    "ProfileLikelihoodResult",
     "batch_fermentation_ode",
     "fit_monod",
     "monod_equation",
+    "monod_profile_likelihood_ci",
     "read_fermentation_csv",
     "solve_batch_fermentation",
 ]
@@ -418,6 +422,358 @@ def fit_monod(
         ),
         warnings=tuple(warnings),
     )
+
+
+# ---------------------------------------------------------------------------
+# Profile-likelihood confidence intervals
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ProfileLikelihoodResult:
+    """Profile-likelihood confidence intervals for Monod parameters.
+
+    Unlike the calibrated log-normal (Wald) approximation reported in
+    :class:`MonodFitResult`, the profile-likelihood intervals are built by
+    re-optimising the remaining parameters for a grid of candidate values of
+    the parameter of interest and inverting a likelihood-ratio test.  They
+    remain valid for weakly identifiable parameters (strongly curved or
+    asymmetric likelihoods).
+
+    Attributes
+        mu_max_ci, ks_ci, yxs_ci:
+            ``(lower, upper)`` 95% (default) likelihood-ratio confidence
+            intervals.  ``None`` when the criterion could not be inverted.
+            A bound that ran into the fitted parameter's search boundary is
+            reported in *warnings*.
+        chi2_critical:
+            The chi-square critical value of the inversion test (≈ 3.84 for
+            a one-parameter 95% interval).
+        residual_variance:
+            Estimated variance of the scaled residuals (``SSE / df``).
+        n_points:
+            Number of time points used.
+        warnings:
+            Boundary or non-invertible-interval reports.
+    """
+
+    mu_max_ci: tuple[float, float] | None
+    ks_ci: tuple[float, float] | None
+    yxs_ci: tuple[float, float] | None
+    chi2_critical: float
+    residual_variance: float
+    n_points: int
+    warnings: tuple[str, ...] = ()
+
+
+def _validate_profile_inputs(
+    time: np.ndarray,
+    biomass: np.ndarray,
+    substrate: np.ndarray,
+    *,
+    mu_max: float,
+    ks: float,
+    yxs: float,
+    alpha: float,
+) -> None:
+    """Validate the common inputs of the profile-likelihood routine."""
+    if not time.shape == biomass.shape == substrate.shape:
+        raise ValueError(
+            f"time, biomass, and substrate must have the same shape, "
+            f"got {time.shape}, {biomass.shape}, {substrate.shape}."
+        )
+    if time.size < 5:
+        raise ValueError(
+            f"Need at least 5 time points for Monod fitting, got {time.size}."
+        )
+    if np.any(time < 0) or np.any(biomass < 0) or np.any(substrate < 0):
+        raise ValueError("Time, biomass, and substrate must be non-negative.")
+    for name, value in (("mu_max", mu_max), ("ks", ks), ("yxs", yxs)):
+        if not np.isfinite(value) or value <= 0.0:
+            raise ValueError(f"Fitted parameter {name} must be finite and positive.")
+    if not 0.0 < alpha < 1.0:
+        raise ValueError("alpha must lie strictly between 0 and 1.")
+
+
+def _sse_frozen(
+    params: np.ndarray,
+    *,
+    time: np.ndarray,
+    x0: float,
+    s0: float,
+    biomass_scale: float,
+    substrate_scale: float,
+    biomass: np.ndarray,
+    substrate: np.ndarray,
+) -> float:
+    """SSE of scaled residuals for fixed Monod parameters."""
+    mu_max, ks, yxs = params
+    try:
+        x_pred, s_pred = solve_batch_fermentation(time, x0, s0, mu_max, ks, yxs)
+    except (RuntimeError, ValueError):
+        return np.inf
+    return float(
+        np.sum(((x_pred - biomass) / biomass_scale) ** 2)
+        + np.sum(((s_pred - substrate) / substrate_scale) ** 2)
+    )
+
+
+def _profile_sse(
+    log_fixed: float,
+    *,
+    fixed_idx: int,
+    params: np.ndarray,
+    time: np.ndarray,
+    x0: float,
+    s0: float,
+    biomass_scale: float,
+    substrate_scale: float,
+    biomass: np.ndarray,
+    substrate: np.ndarray,
+    log_bounds: tuple[np.ndarray, np.ndarray],
+) -> float:
+    """SSE after fixing one parameter and re-optimising the other two.
+
+    The fixed parameter's value is ``exp(log_fixed)``; the other two are
+    optimised on the log scale inside their bounds so the profiled residual
+    sum of squares is comparable to the full fit.
+    """
+    trial = np.asarray(params, dtype=float)
+    trial[fixed_idx] = np.exp(log_fixed)
+    other_idx = [i for i in range(3) if i != fixed_idx]
+    log_bounds_other_low = np.array([log_bounds[0][i] for i in other_idx])
+    log_bounds_other_high = np.array([log_bounds[1][i] for i in other_idx])
+    log0 = np.array([np.log(params[i]) for i in other_idx])
+    lower = np.maximum(log_bounds_other_low, log0 - 15.0)
+    upper = np.minimum(log_bounds_other_high, log0 + 15.0)
+    start = np.clip(log0, lower * (1.0 + 1e-9), upper / (1.0 + 1e-9))
+
+    def residual(log_other: np.ndarray) -> np.ndarray:
+        for log_value, index in zip(log_other, other_idx, strict=True):
+            trial[index] = np.exp(log_value)
+        mu_max, ks, yxs = trial
+        try:
+            x_pred, s_pred = solve_batch_fermentation(
+                time, x0, s0, mu_max, ks, yxs
+            )
+        except (RuntimeError, ValueError):
+            return np.full(2 * time.size, 1e6)
+        return np.concatenate(
+            [
+                (x_pred - biomass) / biomass_scale,
+                (s_pred - substrate) / substrate_scale,
+            ]
+        )
+
+    result = least_squares(
+        residual,
+        start,
+        bounds=(lower, upper),
+        method="trf",
+        max_nfev=5000,
+    )
+    return float(np.sum(result.fun**2))
+
+
+def _invert_one_parameter(
+    fixed_idx: int,
+    *,
+    log_mle: float,
+    log_bound_low: float,
+    log_bound_high: float,
+    params: np.ndarray,
+    sse_global: float,
+    sigma2: float,
+    chi2_critical: float,
+    warnings: list[str],
+    name: str,
+    **kwargs: Any,
+) -> tuple[float, float] | None:
+    """Invert the likelihood-ratio profile for a single parameter.
+
+    Returns the ``(lower, upper)`` bounds on the linear scale, or ``None`` if
+    the interval cannot be inverted numerically.
+    """
+    def _g(log_theta: float) -> float:
+        sse = _profile_sse(
+            log_theta, fixed_idx=fixed_idx, params=params, **kwargs
+        )
+        if not np.isfinite(sse):
+            # Treat a failed ODE as far outside the interval.
+            return float("inf") if log_theta > log_mle else -float("inf")
+        return (sse - sse_global) / sigma2 - chi2_critical
+
+    # brentq needs opposite signs; at the MLE the interval's deviance is 0.
+    lower_root = log_bound_low
+    if np.isfinite(log_bound_low):
+        try:
+            if _g(log_bound_low) > 0.0:
+                lower_root = brentq(
+                    _g, log_bound_low, log_mle,
+                    xtol=1e-6, rtol=1e-9,
+                )
+            # else the whole low side satisfies the criterion.
+        except (ValueError, RuntimeError) as exc:
+            warnings.append(
+                f"{name}: lower profile bound not inverted ({exc})."
+            )
+            return None
+
+    upper_root = log_bound_high
+    if np.isfinite(log_bound_high):
+        try:
+            if _g(log_bound_high) > 0.0:
+                upper_root = brentq(
+                    _g, log_mle, log_bound_high,
+                    xtol=1e-6, rtol=1e-9,
+                )
+        except (ValueError, RuntimeError) as exc:
+            warnings.append(
+                f"{name}: upper profile bound not inverted ({exc})."
+            )
+            return None
+
+    lower_bound_ran = lower_root == log_bound_low and _g(log_bound_low) <= 0.0
+    upper_bound_ran = upper_root == log_bound_high and _g(log_bound_high) <= 0.0
+    if lower_bound_ran:
+        warnings.append(
+            f"{name}: 95% profile interval reaches the low search boundary."
+        )
+    if upper_bound_ran:
+        warnings.append(
+            f"{name}: 95% profile interval reaches the high search boundary."
+        )
+    return (float(np.exp(lower_root)), float(np.exp(upper_root)))
+
+
+def monod_profile_likelihood_ci(
+    time: np.ndarray,
+    biomass: np.ndarray,
+    substrate: np.ndarray,
+    *,
+    mu_max: float,
+    ks: float,
+    yxs: float,
+    alpha: float = 0.05,
+) -> ProfileLikelihoodResult:
+    """Profile-likelihood confidence intervals for fitted Monod parameters.
+
+    Evaluates the likelihood-ratio profile for each of μmax, Ks and Yxs by
+    fixing that parameter at candidate values and re-fitting the other two,
+    then inverts the chi-square test to obtain asymmetric intervals.  This is
+    more reliable than the log-normal (Wald) approximation for weakly
+    identifiable parameters.
+
+    Parameters
+        time, biomass, substrate:
+            The batch-fermentation data the parameters were fitted to (same
+            arrays passed to :func:`fit_monod`).
+        mu_max, ks, yxs:
+            The fitted parameter values (typically from a
+            :class:`MonodFitResult`).
+        alpha:
+            Interval confidence level is ``1 - alpha`` (default 0.05 for 95%
+            intervals).
+
+    Returns
+        :class:`ProfileLikelihoodResult`.
+
+    Raises
+        ValueError:
+            On mismatched or insufficient data, non-positive fitted
+            parameters, or an out-of-range *alpha*.
+    """
+    time = np.asarray(time, dtype=float)
+    biomass = np.asarray(biomass, dtype=float)
+    substrate = np.asarray(substrate, dtype=float)
+    _validate_profile_inputs(
+        time, biomass, substrate, mu_max=mu_max, ks=ks, yxs=yxs, alpha=alpha
+    )
+
+    x0 = float(biomass[0])
+    s0 = float(substrate[0])
+    # Match the response scales used by fit_monod.
+    biomass_scale = _response_scale(biomass, None)
+    substrate_scale = _response_scale(substrate, None)
+
+    params = np.array([mu_max, ks, yxs], dtype=float)
+    log_bounds = (
+        np.array([np.log(1e-6), np.log(1e-6), np.log(1e-6)]),
+        np.array([np.log(10.0), np.log(1e6), np.log(1e6)]),
+    )
+
+    n_residuals = 2 * time.size
+    chi2_critical = float(chi2.ppf(1.0 - alpha, df=1))
+    warnings: list[str] = []
+
+    sse_global = _sse_frozen(
+        params,
+        time=time,
+        x0=x0,
+        s0=s0,
+        biomass_scale=biomass_scale,
+        substrate_scale=substrate_scale,
+        biomass=biomass,
+        substrate=substrate,
+    )
+    degrees_freedom = n_residuals - 3
+    if (not np.isfinite(sse_global)) or sse_global <= 0.0 or degrees_freedom <= 0:
+        return ProfileLikelihoodResult(
+            mu_max_ci=None,
+            ks_ci=None,
+            yxs_ci=None,
+            chi2_critical=chi2_critical,
+            residual_variance=float("nan"),
+            n_points=int(time.size),
+            warnings=(
+                "Profile-likelihood interval not computed because the fitted "
+                "residual sum of squares is non-positive, non-finite, or too "
+                "few residuals remain.",
+            ),
+        )
+    sigma2 = sse_global / degrees_freedom
+
+    shared = dict(
+        time=time,
+        x0=x0,
+        s0=s0,
+        biomass_scale=biomass_scale,
+        substrate_scale=substrate_scale,
+        biomass=biomass,
+        substrate=substrate,
+        log_bounds=log_bounds,
+    )
+    names = ("mu_max", "ks", "yxs")
+    log_mle = np.log(params)
+
+    intervals = []
+    for fixed_idx in range(3):
+        intervals.append(
+            _invert_one_parameter(
+                fixed_idx,
+                log_mle=log_mle[fixed_idx],
+                log_bound_low=log_bounds[0][fixed_idx],
+                log_bound_high=log_bounds[1][fixed_idx],
+                params=params,
+                sse_global=sse_global,
+                sigma2=sigma2,
+                chi2_critical=chi2_critical,
+                warnings=warnings,
+                name=names[fixed_idx],
+                **shared,
+            )
+        )
+
+    result = ProfileLikelihoodResult(
+        mu_max_ci=intervals[0],
+        ks_ci=intervals[1],
+        yxs_ci=intervals[2],
+        chi2_critical=chi2_critical,
+        residual_variance=sigma2,
+        n_points=int(time.size),
+        warnings=tuple(warnings),
+    )
+    return result
 
 
 # ---------------------------------------------------------------------------
