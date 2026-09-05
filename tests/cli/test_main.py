@@ -476,6 +476,8 @@ class TestResearchWorkflow:
                     "report.html",
                     "--json-file",
                     "report.json",
+                    "--miqe-output-file",
+                    "miqe.json",
                 ],
             )
             assert result.exit_code == 0
@@ -483,8 +485,51 @@ class TestResearchWorkflow:
             assert "Alpha research software" in Path("report.html").read_text(
                 encoding="utf-8"
             )
+            assert "MIQE 2.0 (2025) reporting checklist" in Path(
+                "report.html"
+            ).read_text(encoding="utf-8")
             payload = json.loads(Path("report.json").read_text(encoding="utf-8"))
             assert payload["analysis"]["summary"]["exclusion_count"] == 0
+            assert payload["miqe2"]["standard"] == "MIQE 2.0 (2025)"
+            assert "miqe2" in payload
+            miqe = json.loads(Path("miqe.json").read_text(encoding="utf-8"))
+            assert miqe["standard"] == "MIQE 2.0 (2025)"
+            assert len(miqe["items"]) == len(payload["miqe2"]["items"])
+
+    def test_miqe_command_emits_checklist(self, runner: CliRunner) -> None:
+        with runner.isolated_filesystem():
+            result = runner.invoke(
+                cli,
+                [
+                    "miqe",
+                    str(RESEARCHER_EXAMPLE),
+                    "--reference-targets",
+                    "GAPDH,RPLP0",
+                    "--output",
+                    "json",
+                ],
+            )
+            assert result.exit_code == 0
+            data = json.loads(result.stdout)
+            assert data["standard"] == "MIQE 2.0 (2025)"
+            assert "analysis_reference_validation" in {
+                item["field_id"] for item in data["items"]
+            }
+
+            # text form names the five categories
+            result_text = runner.invoke(
+                cli,
+                ["miqe", str(RESEARCHER_EXAMPLE), "--output", "text"],
+            )
+            assert result_text.exit_code == 0
+            for label in (
+                "Reagent Preparation",
+                "Sample Preparation",
+                "Reverse Transcription",
+                "qPCR Protocol",
+                "Data Analysis",
+            ):
+                assert label in result_text.stdout
 
     def test_provenance_output_file(self, runner: CliRunner) -> None:
         with runner.isolated_filesystem():

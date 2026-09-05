@@ -7,6 +7,8 @@ and plotting layers behind these sub-commands:
 * ``validate``   -- run a MIQE readiness assessment on a tidy CSV.
 * ``outliers``   -- detect suspect technical-replicate wells (Chauvenet).
 * ``analyze``    -- run relative-quantification analysis (ΔΔCq / Pfaffl).
+* ``report``     -- guided HTML readiness + MIQE 2.0 + quantities + provenance.
+* ``miqe``       -- emit a standalone MIQE 2.0 (2025) reporting checklist.
 * ``provenance`` -- emit a JSON provenance manifest for a dataset.
 * ``plot``       -- render fold-change bar plots or Cq heatmaps.
 
@@ -49,7 +51,11 @@ from bioeng_qpcr.calculations import (
 from bioeng_qpcr.io import CSVValidationError, read_rdml, read_tidy_csv
 from bioeng_qpcr.provenance import ProvenanceManifest
 from bioeng_qpcr.reporting import build_research_report
-from bioeng_qpcr.validation import RuleExecutionError, ValidationEngine
+from bioeng_qpcr.validation import (
+    RuleExecutionError,
+    ValidationEngine,
+    miqe2_checklist,
+)
 
 __all__ = ["cli"]
 
@@ -643,6 +649,12 @@ def compare(
     default=None,
     help="Optionally write the complete machine-readable report.",
 )
+@click.option(
+    "--miqe-output-file",
+    type=click.Path(dir_okay=False, path_type=str),
+    default=None,
+    help="Optionally write the embedded MIQE 2.0 checklist as standalone JSON.",
+)
 @click.option("--lenient", is_flag=True)
 def report(
     csv_path: str,
@@ -650,9 +662,10 @@ def report(
     reference_targets: list[str] | None,
     output_file: str,
     json_file: str | None,
+    miqe_output_file: str | None,
     lenient: bool,
 ) -> None:
-    """Generate a guided HTML readiness, analysis, and provenance report."""
+    """Generate a guided HTML readiness, analysis, MIQE, and provenance report."""
     experiment = _load_experiment(
         csv_path,
         reference_targets=reference_targets,
@@ -665,7 +678,68 @@ def report(
     Path(output_file).write_text(researcher_report.html, encoding="utf-8")
     if json_file:
         Path(json_file).write_text(researcher_report.to_json() + "\n", encoding="utf-8")
+    if miqe_output_file:
+        miqe_payload = json.dumps(
+            researcher_report.payload["miqe2"], indent=2, ensure_ascii=False
+        )
+        Path(miqe_output_file).write_text(miqe_payload + "\n", encoding="utf-8")
     click.echo(f"Research report saved to {output_file}")
+
+
+# ---------------------------------------------------------------------------
+# miqe: MIQE 2.0 reporting-completeness checklist
+# ---------------------------------------------------------------------------
+
+
+@cli.command()
+@click.argument(
+    "csv_path",
+    type=click.Path(dir_okay=False, path_type=str),
+)
+@click.option(
+    "--reference-targets",
+    callback=_split_reference_targets,
+    default=None,
+    help="Comma-separated reference (housekeeping) gene names.",
+)
+@click.option(
+    "--output",
+    "output_format",
+    type=click.Choice(["json", "text"]),
+    default="text",
+    show_default=True,
+    help="Checklist format.",
+)
+@click.option(
+    "--output-file",
+    type=click.Path(dir_okay=False, path_type=str),
+    default=None,
+    help="Write the checklist to this file instead of stdout.",
+)
+@click.option("--lenient", is_flag=True)
+def miqe(
+    csv_path: str,
+    reference_targets: list[str] | None,
+    output_format: str,
+    output_file: str | None,
+    lenient: bool,
+) -> None:
+    """Emit a MIQE 2.0 (2025) reporting-completeness checklist.
+
+    The alpha report is not a certification: it records which of the 46
+    MIQE 2.0 items are attested by the data (``reported``), still expected
+    yet absent (``missing``), or not applicable (``na``).
+    """
+    experiment = _load_experiment(
+        csv_path,
+        reference_targets=reference_targets,
+        strict=not lenient,
+    )
+    checklist = miqe2_checklist(experiment, experiment_name=experiment.name)
+    content = (
+        checklist.to_json() if output_format == "json" else checklist.to_text()
+    )
+    _emit(content, output_file)
 
 
 # ---------------------------------------------------------------------------

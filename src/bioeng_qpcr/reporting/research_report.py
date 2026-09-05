@@ -1,5 +1,19 @@
 # ruff: noqa: E501
-"""Self-contained HTML/JSON report for a qPCR readiness and quantity run."""
+"""Self-contained HTML/JSON report for a qPCR readiness and quantity run.
+
+The :func:`build_research_report` workflow combines, in one auditable packet:
+
+* a MIQE readiness assessment (:class:`~bioeng_qpcr.validation.ValidationEngine`),
+* efficiency-corrected normalized quantities
+  (:func:`~bioeng_qpcr.calculations.normalized_quantity_all`),
+* a provenance manifest (:class:`~bioeng_qpcr.provenance.ProvenanceManifest`), and
+* a **MIQE 2.0 (2025) reporting-completeness checklist**
+  (:func:`~bioeng_qpcr.validation.miqe2_checklist`).
+
+The command-line entry point is ``bioeng-qpcr report`` (see
+:mod:`bioeng_qpcr.cli.main`); the learned checklist may also be emitted on its
+own via ``bioeng-qpcr miqe``.
+"""
 
 from __future__ import annotations
 
@@ -11,7 +25,12 @@ from typing import Any
 from bioeng_qpcr.calculations import normalized_quantity_all
 from bioeng_qpcr.domain.entities import Experiment
 from bioeng_qpcr.provenance import ProvenanceManifest
-from bioeng_qpcr.validation import ValidationEngine
+from bioeng_qpcr.validation import (
+    MIQE2_CATEGORIES,
+    Miqe2Report,
+    ValidationEngine,
+    miqe2_checklist,
+)
 
 
 @dataclass(frozen=True)
@@ -39,9 +58,10 @@ def build_research_report(
     target_name: str,
     reference_targets: list[str] | None = None,
 ) -> ResearchReport:
-    """Run readiness, normalized quantities, and provenance as one workflow."""
+    """Run readiness, normalized quantities, MIQE 2.0, and provenance as one workflow."""
     readiness = ValidationEngine().run(experiment)
     analysis = normalized_quantity_all(experiment, target_name, reference_targets)
+    miqe = miqe2_checklist(experiment, experiment_name=experiment.name)
     manifest = ProvenanceManifest.from_experiment(
         experiment, parameters=analysis.parameters
     )
@@ -57,6 +77,7 @@ def build_research_report(
         },
         "readiness": readiness.to_dict(),
         "analysis": analysis.to_dict(),
+        "miqe2": miqe.to_dict(),
         "provenance": manifest.to_dict(),
     }
 
@@ -96,6 +117,8 @@ th{{background:#eef4f8}} code{{word-break:break-all}} .pass{{color:#166534}}
 <h2>Readiness assessment</h2>
 <p>Overall: <strong>{readiness.overall_status}</strong>; rule coverage: {readiness.rule_coverage["executed"]}/{readiness.rule_coverage["available"]}.</p>
 {_table(["Rule", "Status", "Finding"], readiness_rows)}
+<h2>MIQE 2.0 (2025) reporting checklist</h2>
+{_miqe_html(miqe)}
 <h2>Efficiency-corrected normalized quantities</h2>
 {_table(["Sample", "Normalized quantity", "log2 quantity"], quantity_rows)}
 <h2>Excluded samples</h2>
@@ -105,3 +128,26 @@ th{{background:#eef4f8}} code{{word-break:break-all}} .pass{{color:#166534}}
 <h2>Provenance</h2><pre>{escape(manifest.to_json())}</pre>
 </body></html>"""
     return ResearchReport(payload=payload, html=html)
+
+
+def _miqe_html(miqe: Miqe2Report) -> str:
+    """Render a MIQE 2.0 completeness checklist as a grouped HTML section."""
+    s = miqe.summary
+    lines = [
+        "<p><strong>Reporting completeness:</strong> "
+        f"reported {s['reported']} / missing {s['missing']} / "
+        f"n/a {s['na']} &mdash; essential completeness "
+        f"{miqe.essential_completeness * 100:.1f}%.</p>"
+    ]
+    marks = {"reported": "✔", "missing": "&nbsp;&mdash;", "na": "NA"}
+    for category_id, _label in MIQE2_CATEGORIES:
+        group = [i for i in miqe.items if i.category == category_id]
+        if not group:
+            continue
+        rows = [
+            [marks[i.status], i.field_id, i.label, i.evidence]
+            for i in group
+        ]
+        lines.append(f"<h3>{escape(dict(MIQE2_CATEGORIES)[category_id])}</h3>")
+        lines.append(_table(["Status", "Field", "Item", "Evidence"], rows))
+    return "\n".join(lines)
