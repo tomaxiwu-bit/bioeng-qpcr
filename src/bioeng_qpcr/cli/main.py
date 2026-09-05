@@ -798,6 +798,160 @@ def plot(
 
 
 # ---------------------------------------------------------------------------
+# curves: per-well amplification-curve analysis
+# ---------------------------------------------------------------------------
+
+
+def _load_curve_experiment(
+    csv_path: str,
+    reference_targets: list[str] | None = None,
+):
+    """Load an experiment that carries raw amplification traces.
+
+    A long-format trace CSV (``position, cycle, fluorescence``) is read with
+    :func:`read_amplification_csv`; anything else (including RDML) is routed
+    through :func:`_load_experiment`, which maps RDML ``<adp>`` data onto
+    ``Experiment.traces``.
+    """
+    from bioeng_qpcr.io import read_amplification_csv
+
+    suffix = Path(csv_path).suffix.lower()
+    if suffix not in _RDML_SUFFIXES:
+        try:
+            return read_amplification_csv(
+                csv_path, reference_targets=reference_targets
+            )
+        except (ValueError, FileNotFoundError):
+            pass
+    return _load_experiment(csv_path, reference_targets)
+
+
+@cli.command()
+@click.argument(
+    "csv_path",
+    type=click.Path(dir_okay=False, path_type=str),
+)
+@click.option(
+    "--baseline-method",
+    type=click.Choice(["constant", "linear"]),
+    default="constant",
+    show_default=True,
+    help="Background model used to correct each trace before fitting.",
+)
+@click.option(
+    "--reference-targets",
+    default=None,
+    help="Comma-separated reference (housekeeping) gene names.",
+    callback=_split_reference_targets,
+)
+@click.option(
+    "--output-file",
+    default=None,
+    help="Write the per-well and per-assay JSON summary to this path.",
+)
+def curves(
+    csv_path: str,
+    baseline_method: str,
+    reference_targets: list[str] | None,
+    output_file: str | None,
+) -> None:
+    """Fit every raw amplification curve and report per-well metrics.
+
+    Inputs may be a long-format trace CSV (``position, cycle,
+    fluorescence``, plus optional ``target_name``/``sample_name``/``cq``) or
+    an RDML file containing ``<adp>`` amplification data.  Each well is
+    baseline-corrected and fit to a sigmoid to derive a curve *Cq* and a
+    per-well efficiency from the early exponential window; per-assay median
+    efficiencies are aggregated, and every well that could not be fitted is
+    retained in the report rather than silently dropped.
+    """
+    from bioeng_qpcr.calculations import analyze_amplification_curves
+
+    experiment = _load_curve_experiment(csv_path, reference_targets)
+    if not experiment.has_traces:
+        _fail("Error: no raw amplification traces were found in the input.")
+
+    try:
+        result = analyze_amplification_curves(
+            experiment, baseline_method=baseline_method
+        )
+    except (TypeError, ValueError) as exc:
+        _fail(f"Error: {exc}")
+
+    rows = []
+    for position in sorted(result.per_well):
+        fit = result.per_well[position]
+        rows.append(
+            {
+                "position": position,
+                "target": result.trace_target.get(position, ""),
+                "status": fit.status,
+                "cq": fit.cq,
+                "cq_sdm": fit.cq_sdm,
+                "efficiency": fit.eff,
+                "delta_rn": fit.delta_rn,
+                "r_squared": fit.r_squared,
+                "baseline": fit.baseline,
+            }
+        )
+    assay_rows = [
+        {
+            "target": summary.target,
+            "median_efficiency": summary.median,
+            "n_wells": summary.n_wells,
+            "min_efficiency": summary.min,
+            "max_efficiency": summary.max,
+        }
+        for summary in result.per_assay.values()
+    ]
+    summary_dict = {
+        "per_well": rows,
+        "per_assay": assay_rows,
+        "wells_without_trace": list(result.wells_without_trace),
+        "traces_without_well": list(result.traces_without_well),
+        "non_amplifying": list(result.non_amplifying),
+        "warnings": list(result.warnings),
+    }
+
+    if output_file:
+        Path(output_file).write_text(
+            json.dumps(summary_dict, indent=2, default=str) + "\n",
+            encoding="utf-8",
+        )
+        click.echo(f"Amplification-curve summary written to {output_file}")
+        return
+
+    text_lines = ["Amplification-curve summary", "=" * 30]
+    text_lines.extend(
+        f"{row['position']:>4}  {row['target']:<10} {row['status']:<14} "
+        f"Cq={_fmt(row['cq'])}  Eff={_fmt(row['efficiency'])}  "
+        f"ΔRn={_fmt(row['delta_rn'])}  R²={_fmt(row['r_squared'])}"
+        for row in rows
+    )
+    text_lines.append("")
+    text_lines.append("Per-assay median efficiency:")
+    text_lines.extend(
+        f"  {a['target']:<10} n={a['n_wells']}  median={_fmt(a['median_efficiency'])}"
+        for a in assay_rows
+    )
+    for label, items in (
+        ("wells without a trace", result.wells_without_trace),
+        ("traces without a well", result.traces_without_well),
+        ("non-amplifying wells", result.non_amplifying),
+    ):
+        if items:
+            text_lines.append(f"{label}: {', '.join(items)}")
+    _emit("\n".join(text_lines).rstrip("\n"), None)
+
+
+def _fmt(value: float | None) -> str:
+    """Plain-text formatting for an optional float."""
+    if value is None:
+        return "-"
+    return f"{value:.3f}"
+
+
+# ---------------------------------------------------------------------------
 # Module entry point
 # ---------------------------------------------------------------------------
 

@@ -14,10 +14,24 @@ the :class:`~bioeng_qpcr.domain.entities.Experiment` domain model:
 * **Efficiency fitting** (:mod:`~bioeng_qpcr.calculations.efficiency`) --
   estimate amplification efficiency from standard curves or amplification
   traces.
+* **Amplification curves** (:mod:`~bioeng_qpcr.calculations.amplification_curve`) --
+  full per-well curve fitting: baseline estimation and correction, sigmoid
+  Cq and per-well efficiency, plus whole-experiment aggregation.
 """
 
 from __future__ import annotations
 
+from bioeng_qpcr.calculations.amplification_curve import (
+    AmplificationAnalysisResult,
+    AmplificationFitResult,
+    AssayEffSummary,
+    BaselineEstimate,
+    analyze_amplification_curves,
+    apply_assay_efficiency,
+    baseline_correct,
+    estimate_baseline,
+    fit_amplification_curve,
+)
 from bioeng_qpcr.calculations.batch import AnalysisExclusion, BatchAnalysisResult
 from bioeng_qpcr.calculations.delta_cq import (
     DeltaCqResult,
@@ -58,7 +72,12 @@ from bioeng_qpcr.calculations.pfaffl import (
 )
 
 __all__ = [
+    # Amplification curves
+    "AmplificationAnalysisResult",
+    "AmplificationFitResult",
     "AnalysisExclusion",
+    "AssayEffSummary",
+    "BaselineEstimate",
     "BatchAnalysisResult",
     # Technical-replicate outlier detection
     "ChauvenetFlag",
@@ -83,6 +102,8 @@ __all__ = [
     "delta_delta_cq_all",
     "delta_delta_cq_batch",
     "detect_replicate_outliers",
+    "estimate_baseline",
+    "fit_amplification_curve",
     "fit_efficiency_from_standard_curve",
     "fit_efficiency_from_trace",
     "fit_logistic_trace_shape",
@@ -91,4 +112,7 @@ __all__ = [
     "pfaffl",
     "pfaffl_all",
     "pfaffl_batch",
+    "analyze_amplification_curves",
+    "apply_assay_efficiency",
+    "baseline_correct",
 ]
