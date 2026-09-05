@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>bioeng-qpcr · 分析工作台</title>
+<style>
+  :root{
+    --bg:#f6f4ef; --panel:#ffffff; --ink:#2a2724; --muted:#6d675f;
+    --line:#e4dfd6; --brand:#8a5a3b; --brand-deep:#6e452c;
+    --accent:#2b6f5e; --danger:#b23b3b; --warn:#a06a12;
+    --ok:#2b6f5e; --chip:#efe9e0; --radius:14px;
+    --shadow:0 1px 2px rgba(42,39,36,.05),0 6px 24px rgba(42,39,36,.06);
+    --mono:'SFMono-Regular',ui-monospace,'Cascadia Code',Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:'SF Pro Text',-apple-system,'Segoe UI',Roboto,'PingFang SC','Microsoft YaHei',sans-serif;
+    line-height:1.6;font-size:15px}
+  .wrap{max-width:1060px;margin:0 auto;padding:28px 22px 80px}
+  header.top{border-bottom:1px solid var(--line);padding-bottom:20px;margin-bottom:22px}
+  .brand{display:flex;align-items:baseline;gap:12px}
+  .brand h1{margin:0;font-size:24px;letter-spacing:.3px;font-weight:700}
+  .brand .ver{font-family:var(--mono);color:var(--muted);font-size:12px}
+  .brand .tag{color:var(--muted);font-size:13.5px;margin-top:2px}
+  nav.tabs{display:flex;gap:8px;margin-top:18px;flex-wrap:wrap}
+  .tab{border:1px solid var(--line);background:var(--panel);padding:9px 16px;border-radius:999px;
+    cursor:pointer;font-size:14px;font-weight:500;color:var(--muted);transition:.15s}
+  .tab:hover{border-color:var(--brand);color:var(--brand)}
+  .tab.active{background:var(--brand);border-color:var(--brand);color:#fff}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    padding:22px;box-shadow:var(--shadow);margin-top:20px}
+  .card h2{margin:0 0 4px;font-size:17px}
+  .card .hint{color:var(--muted);font-size:13px;margin:0 0 16px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-top:14px}
+  label.field{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(--muted)}
+  label.field input,label.field select{
+    font:inherit;color:var(--ink);padding:9px 11px;border:1px solid var(--line);
+    border-radius:9px;background:#fdfcf9;outline:none}
+  label.field input:focus,label.field select:focus{border-color:var(--brand)}
+  .dropzone{border:1.5px dashed var(--line);border-radius:12px;padding:26px;text-align:center;
+    cursor:pointer;transition:.15s;background:#fdfcf9}
+  .dropzone:hover,.dropzone.drag{border-color:var(--brand);background:#faf6f0}
+  .dropzone .dzicon{font-size:26px}
+  .dropzone .dzfile{font-family:var(--mono);color:var(--brand);word-break:break-all}
+  .dropzone .dzmeta{color:var(--muted);font-size:12.5px;margin-top:2px}
+  .actions{display:flex;align-items:center;gap:14px;margin-top:18px;flex-wrap:wrap}
+  button.run{background:var(--accent);color:#fff;border:none;border-radius:10px;
+    padding:11px 22px;font:inherit;font-weight:600;cursor:pointer;transition:.15s}
+  button.run:hover{filter:brightness(1.06)}
+  button.run:disabled{opacity:.5;cursor:not-allowed}
+  .spinner{display:none;align-items:center;gap:8px;color:var(--muted);font-size:13px}
+  .spinner.show{display:inline-flex}
+  .spinner .dot{width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--brand);
+    border-radius:50%;animation:spin .7s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .banner{border-radius:11px;padding:12px 15px;margin-top:18px;font-size:14px;display:none}
+  .banner.show{display:block}
+  .banner.err{background:#fbe9e7;color:var(--danger);border:1px solid #f2c9c3}
+  .banner.ok{background:#e7f1ed;color:var(--ok);border:1px solid #c4ddd3}
+  .results{display:none;margin-top:20px}
+  .results.show{display:block}
+  .sec{background:#fff;border:1px solid var(--line);border-radius:var(--radius);
+    overflow:hidden;margin-top:16px}
+  .sec h3{font-size:13px;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);
+    margin:0;padding:10px 16px;border-bottom:1px solid var(--line);background:#faf8f4}
+  .sec .body{padding:16px;overflow:auto}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th,td{text-align:left;padding:8px 12px;border-bottom:1px solid #f0ece4;white-space:nowrap}
+  th{color:var(--muted);font-weight:600;font-size:12.5px;background:#faf8f4;position:sticky;top:0}
+  tr:last-child td{border-bottom:none}
+  td.num,th.num{text-align:right;font-family:var(--mono)}
+  .status{display:inline-block;padding:1px 9px;border-radius:999px;font-size:12px;font-weight:600}
+  .status.ok{background:#e7f1ed;color:var(--ok)}
+  .status.degraded{background:#fdf1dc;color:var(--warn)}
+  .status.non_amplifying,.status.failed{background:#fbe9e7;color:var(--danger)}
+  .imgbox img{max-width:100%;border:1px solid var(--line);border-radius:10px;display:block;background:#fff}
+  .imgpair{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:720px){.imgpair{grid-template-columns:1fr}}
+  .twocol{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:720px){.twocol{grid-template-columns:1fr}}
+  code{font-family:var(--mono);background:var(--chip);padding:1px 6px;border-radius:5px;font-size:12.5px}
+  .foot{margin-top:30px;color:var(--muted);font-size:12.5px;text-align:center}
+  .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:14px}
+  .metric{background:#faf8f4;border:1px solid var(--line);border-radius:11px;padding:13px 15px}
+  .metric .k{color:var(--muted);font-size:12px}
+  .metric .v{font-size:20px;font-weight:700;font-family:var(--mono)}
+  .metric .v.warn{color:var(--warn)} .metric .v.good{color:var(--ok)} .metric .v.bad{color:var(--danger)}
+  .lh{white-space:pre-wrap;font-family:var(--mono);font-size:12.5px;background:#faf8f4;
+    border:1px solid var(--line);border-radius:11px;padding:14px;overflow:auto;max-height:420px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <h1>bioeng-qpcr</h1>
+      <span class="ver" id="version">…</span>
+    </div>
+    <div class="tag">可审计的 qPCR 分析引擎 · MIQE 校验 / 相对定量 / 扩增曲线</div>
+    <nav class="tabs" id="tabs">
+      <button class="tab active" data-tab="validate">MIQE 校验</button>
+      <button class="tab" data-tab="analyze">定量分析</button>
+      <button class="tab" data-tab="curves">扩增曲线</button>
+    </nav>
+  </header>
+
+  <!-- ============ VALIDATE ============ -->
+  <section class="panel" data-panel="validate">
+    <div class="card">
+      <h2>MIQE 就绪度评估</h2>
+      <p class="hint">上传 tidy CSV 或 RDML 文件，得到合规性报告与 Cq 热图。支持 <code>position</code>/<code>sample</code>/<code>target</code>/<code>cq</code> 等列</p>
+      <div class="dropzone" data-drop="validate">
+        <div class="dzicon">⇧</div>
+        <div class="dzfile">点击或拖拽文件到此处</div>
+        <div class="dzmeta">.csv · .tsv · .rdml · .xml（≤ 50 MB）</div>
+      </div>
+      <div class="actions">
+        <button class="run" data-run="validate">运行校验</button>
+        <div class="spinner" data-spin="validate"><span class="dot"></span><span>分析中…</span></div>
+      </div>
+    </div>
+    <div class="banner" data-banner="validate"></div>
+    <div class="results" data-results="validate"></div>
+  </section>
+
+  <!-- ============ ANALYZE ============ -->
+  <section class="panel" data-panel="analyze" style="display:none">
+    <div class="card">
+      <h2>相对定量分析</h2>
+      <p class="hint">选择方法并配置参数后运行，输出定量结果、组间比较与图表</p>
+      <div class="dropzone" data-drop="analyze">
+        <div class="dzicon">⇧</div>
+        <div class="dzfile">点击或拖拽文件到此处</div>
+        <div class="dzmeta">.csv · .tsv · .rdml · .xml</div>
+      </div>
+      <div class="grid">
+        <label class="field">方法
+          <select data-field="method">
+            <option value="normalized_quantity">效率校正归一化量（normalized quantity）</option>
+            <option value="delta_delta_cq">ΔΔCq（Livak，默认 100% 效率）</option>
+            <option value="pfaffl">Pfaffl（效率校正）</option>
+            <option value="compare">组间比较（compare groups）</option>
+          </select>
+        </label>
+        <label class="field">目标基因 target
+          <input data-field="target" placeholder="如 IL6">
+        </label>
+        <label class="field">对照样本 control
+          <input data-field="control" placeholder="ΔΔCq / Pfaffl 必填">
+        </label>
+        <label class="field">参考基因（逗号分隔）
+          <input data-field="reference_targets" placeholder="如 GAPDH">
+        </label>
+        <label class="field">处理组 treated
+          <input data-field="treated_group" placeholder="compare 用">
+        </label>
+        <label class="field">对照组对照 control group
+          <input data-field="control_group" placeholder="compare 用">
+        </label>
+      </div>
+      <div class="actions">
+        <button class="run" data-run="analyze">运行分析</button>
+        <div class="spinner" data-spin="analyze"><span class="dot"></span><span>分析中…</span></div>
+      </div>
+    </div>
+    <div class="banner" data-banner="analyze"></div>
+    <div class="results" data-results="analyze"></div>
+  </section>
+
+  <!-- ============ CURVES ============ -->
+  <section class="panel" data-panel="curves" style="display:none">
+    <div class="card">
+      <h2>扩增曲线拟合</h2>
+      <p class="hint">上传长格式扩增曲线 CSV（<code>position, cycle, fluorescence</code>），逐孔拟合基线、Cq 与效率</p>
+      <div class="dropzone" data-drop="curves">
+        <div class="dzicon">⇧</div>
+        <div class="dzfile">点击或拖拽文件到此处</div>
+        <div class="dzmeta">.csv（position, cycle, fluorescence）· .rdml</div>
+      </div>
+      <div class="grid">
+        <label class="field">基线方法
+          <select data-field="baseline_method">
+            <option value="constant">constant（常数基线）</option>
+            <option value="linear">linear（线性基线）</option>
+          </select>
+        </label>
+        <label class="field">参考基因（逗号分隔，可选）
+          <input data-field="reference_targets" placeholder="如 GAPDH">
+        </label>
+      </div>
+      <div class="actions">
+        <button class="run" data-run="curves">运行拟合</button>
+        <div class="spinner" data-spin="curves"><span class="dot"></span><span>拟合中…</span></div>
+      </div>
+    </div>
+    <div class="banner" data-banner="curves"></div>
+    <div class="results" data-results="curves"></div>
+  </section>
+
+  <div class="foot">bioeng-qpcr web 工作台 · 数据仅在浏览器本地发送到本机分析引擎 · 不收集任何数据</div>
+</div>
+
+<script>
+const fileFor = {};
+const ACCEPT = [".csv",".tsv",".rdml",".rdm",".xml",".txt"];
+
+// Tabs
+document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>{
+  const id=document.querySelectorAll(".tab"); id.forEach(x=>x.classList.remove("active"));
+  t.classList.add("active");
+  document.querySelectorAll(".panel").forEach(p=>p.style.display="none");
+  document.querySelector(`[data-panel="${t.dataset.tab}"]`).style.display="block";
+}));
+
+// Dropzones
+document.querySelectorAll(".dropzone").forEach(dz=>{
+  const tab=dz.dataset.drop;
+  const label=dz.querySelector(".dzfile");
+  dz.addEventListener("click",()=>{const inp=document.createElement("input");inp.type="file";
+    inp.accept=ACCEPT.join(",");inp.onchange=()=>{if(inp.files[0]){fileFor[tab]=inp.files[0];
+      label.textContent=inp.files[0].name;
+      dz.querySelector(".dzmeta").textContent=`${(inp.files[0].size/1024).toFixed(0)} KB · ${inp.files[0].name.slice(-4)}`;}};
+    inp.click();});
+  ["dragenter","dragover"].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.add("drag");}));
+  ["dragleave","drop"].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.remove("drag");}));
+  dz.addEventListener("drop",e=>{const f=e.dataTransfer.files[0];if(f){fileFor[tab]=f;
+    label.textContent=f.name; dz.querySelector(".dzmeta").textContent=`${(f.size/1024).toFixed(0)} KB`;}});
+});
+
+// Field accessors
+const val=(tab,key)=>document.querySelector(`[data-panel="${tab}"] [data-field="${key}"]`)?.value ?? "";
+
+// Render helpers
+const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmt=v=>v===null||v===undefined? "–" : (typeof v==="number"? (Number.isInteger(v)?v:+v.toFixed(3)) : v);
+function statusChip(s){const cls=["ok","degraded","non_amplifying","failed"].includes(s)?s:"ok";return `<span class="status ${cls}">${esc(s)}</span>`;}
+function table(heads,rows){return `<div class="sec"><h3>${heads.title}</h3><div class="body"><table><thead><tr>`+
+  heads.cols.map(c=>`<th class="${c.num?"num":""}">${c.t}</th>`).join("")+`</tr></thead><tbody>`+
+  rows.map(r=>`<tr>${heads.cols.map(c=>`<td class="${c.num?"num":""}">${c.f?c.f(r):esc(fmt(r[c.k]))}</td>`).join("")}</tr>`).join("")+
+  `</tbody></table></div></div>`;}
+
+function run(tab,spinner,btn){
+  const f=fileFor[tab];
+  document.querySelector(`[data-banner="${tab}"]`).className="banner";
+  document.querySelector(`[data-results="${tab}"]`).innerHTML="";
+  document.querySelector(`[data-results="${tab}"]`).className="results";
+  if(!f){flash(tab,"请先上传一个数据文件。","err");return;}
+  btn.disabled=true; document.querySelector(`[data-spin="${tab}"]`).classList.add("show");
+  const fd=new FormData(); fd.append("file",f);
+  const url=`/api/${tab}`;
+  if(tab==="validate") fd.append("strict","true");
+  if(tab==="analyze"){
+    fd.append("method",val(tab,"method")); fd.append("target",val(tab,"target"));
+    fd.append("control",val(tab,"control")); fd.append("reference_targets",val(tab,"reference_targets"));
+    fd.append("treated_group",val(tab,"treated_group")); fd.append("control_group",val(tab,"control_group"));
+  }
+  if(tab==="curves"){ fd.append("baseline_method",val(tab,"baseline_method"));
+    fd.append("reference_targets",val(tab,"reference_targets")); }
+  fetch(url,{method:"POST",body:fd}).then(r=>r.json().then(d=>({r,d})))
+    .then(({r,d})=>{
+      if(!d.ok){flash(tab,d.error||"分析失败","err");}
+      else{flash(tab, d.message || (tab==="curves"?"拟合完成。":"完成。"), "ok");
+        render(tab,d);}
+    })
+    .catch(e=>flash(tab,"网络错误："+e.message,"err"))
+    .finally(()=>{btn.disabled=false;document.querySelector(`[data-spin="${tab}"]`).classList.remove("show");});
+}
+
+function flash(tab,msg,kind){
+  const b=document.querySelector(`[data-banner="${tab}"]`);
+  b.className="banner show "+kind; b.textContent=msg;
+}
+
+function render(tab,d){
+  const box=document.querySelector(`[data-results="${tab}"]`);
+  box.className="results show";
+  if(tab==="validate") box.innerHTML=renderValidate(d);
+  else if(tab==="analyze") box.innerHTML=renderAnalyze(d);
+  else box.innerHTML=renderCurves(d);
+}
+
+function renderValidate(d){
+  const good=d.n_failures===0;
+  const metrics=`<div class="metrics">
+    <div class="metric"><div class="k">规则总数</div><div class="v">${d.n_rules}</div></div>
+    <div class="metric"><div class="k">失败</div><div class="v ${good?"good":"bad"}">${d.n_failures}</div></div>
+    <div class="metric"><div class="k">警告</div><div class="v ${d.n_warnings?"warn":"good"}">${d.n_warnings}</div></div>
+    <div class="metric"><div class="k">MIQE 合规</div><div class="v ${good?"good":"bad"}">${good?"通过":"未通过"}</div></div>
+  </div>`;
+  const failTbl=d.failures.length?table({title:"失败/警告规则",cols:[{t:"规则",k:"rule"},{t:"信息",k:"message"}]},d.failures.map(f=>({rule:f.rule,message:f.message}))):"";
+  const heat=d.heatmap?`<div class="sec"><h3>Cq 热图</h3><div class="body imgbox"><img src="${d.heatmap}" alt="Cq heatmap"></div></div>`:"";
+  const text=d.text?`<div class="sec"><h3>文本报告</h3><div class="body"><div class="lh">${esc(d.text)}</div></div></div>`:"";
+  return `<div class="twocol"><div>${metrics}</div>${failTbl}</div>${text}${heat}`;
+}
+
+function renderAnalyze(d){
+  const rows=d.results.map(r=>({sample:r.sample_name||r.sample,target:r.target_name,cq:-99,normalized:r.value??r.normalized_quantity,fold:r.fold_change,status:r.species||""}));
+  const metricTbl=table({title:`分析结果（${d.method}）`,cols:[{t:"样品",k:"sample"},{t:"目标",k:"target"},{t:"量",k:"normalized",num:true},{t:"表达倍数",k:"fold",num:true}]},rows);
+  const excl=d.exclusions&&d.exclusions.length?table({title:"已排除样品",cols:[{t:"样品",k:"sample_name"},{t:"原因",k:"reason"}]},d.exclusions):"";
+  const warn=d.warnings&&d.warnings.length?`<div class="sec"><h3>警告</h3><div class="body"><ul>${d.warnings.map(w=>`<li>${esc(w)}</li>`).join("")}</ul></div></div>`:"";
+  let imgs="";
+  if(d.fold_change) imgs+=`<div class="sec"><h3>表达倍数图</h3><div class="body imgbox"><img src="${d.fold_change}" alt="fold change"></div></div>`;
+  if(d.heatmap) imgs+=`<div class="sec"><h3>Cq 热图</h3><div class="body imgbox"><img src="${d.heatmap}" alt="Cq heatmap"></div></div>`;
+  return `${metricTbl}${excl}${warn}${imgs}`;
+}
+
+function renderCurves(d){
+  const heads={title:"逐孔拟合结果",cols:[
+    {t:"孔位",k:"position"},{t:"目标",k:"target"},{t:"状态",k:"status",f:s=>statusChip(s.status)},
+    {t:"Cq",k:"cq",num:true, f:a=>fmt(a.cq)},{t:"效率",k:"efficiency",num:true,f:a=>fmt(a.efficiency)},
+    {t:"ΔRn",k:"delta_rn",num:true,f:a=>fmt(a.delta_rn)},{t:"R²",k:"r_squared",num:true,f:a=>fmt(a.r_squared)}]};
+  const wellTbl=table(heads,d.per_well||[]);
+  const assayTbl=table({title:"每基因效率汇总",cols:[
+    {t:"目标",k:"target"},{t:"孔数",k:"n_wells",num:true},{t:"中位数效率",k:"median_efficiency",num:true,f:a=>fmt(a.median_efficiency)},
+    {t:"最小",k:"min_efficiency",num:true,f:a=>fmt(a.min_efficiency)},{t:"最大",k:"max_efficiency",num:true,f:a=>fmt(a.max_efficiency)}]},d.per_assay||[]);
+  const notes=d.non_amplifying&&d.non_amplifying.length?`<div class="sec"><h3>非扩增孔</h3><div class="body"><code>${esc(d.non_amplifying.join(", "))}</code></div></div>`:"";
+  const plot=d.plot?`<div class="sec"><h3>扩增曲线</h3><div class="body imgbox"><img src="${d.plot}" alt="amplification curves"></div></div>`:"";
+  return wellTbl+assayTbl+notes+plot;
+}
+
+document.querySelector('[data-run="validate"]').addEventListener("click",e=>run("validate",e.target.closest(".actions").querySelector(".spinner"),e.target));
+document.querySelector('[data-run="analyze"]').addEventListener("click",e=>run("analyze",e.target.closest(".actions").querySelector(".spinner"),e.target));
+document.querySelector('[data-run="curves"]').addEventListener("click",e=>run("curves",e.target.closest(".actions").querySelector(".spinner"),e.target));
+
+fetch("/api/health").then(r=>r.json()).then(d=>{document.getElementById("version").textContent="v"+d.version;}).catch(()=>{});
+</script>
+</body>
+</html>

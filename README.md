@@ -75,6 +75,27 @@ The script runs the packaged scientific smoke test before producing the
 release. Users must extract the complete archive before launching the app;
 copying only `bioeng-qpcr.exe` is unsupported.
 
+## Web application
+
+A Python-only local web workbench exposes the same validated workflows in a
+browser — no JavaScript build step, no external service.  It mirrors the CLI
+(`validate`, `analyze`, `curves`) so results are consistent across surfaces:
+
+```bash
+python -m pip install ".[web]"
+python -m bioeng_qpcr.web        # or: bioeng-qpcr-web
+# open http://127.0.0.1:8008
+```
+
+The page provides three tabs: MIQE readiness assessment (with a Cq heatmap),
+relative quantification (normalized quantity / ΔΔCq / Pfaffl / group
+comparison, with fold-change and heatmap plots), and per-well amplification
+curve fitting (baseline correction, sigmoid Cq, per-well efficiency, and an
+amplification plot).  Upload a tidy CSV, long-format amplification CSV, or
+RDML file; everything runs locally and plots render as in-browser PNG data
+URIs.  Override the bind address or port with the `BIOENG_QPCR_WEB_HOST` /
+`BIOENG_QPCR_WEB_PORT` environment variables.
+
 ## Input CSV
 
 The minimal tidy schema contains one measurement per row:
