@@ -16,8 +16,8 @@ from typing import TYPE_CHECKING, Any
 
 __all__ = [
     "FluxValidationResult",
-    "validate_objective_feasibility",
     "validate_mass_balance",
+    "validate_objective_feasibility",
 ]
 
 if TYPE_CHECKING:

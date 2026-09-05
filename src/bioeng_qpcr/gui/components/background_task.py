@@ -75,7 +75,7 @@ class BackgroundTask(QRunnable):
             self.token.raise_if_cancelled()
         except TaskCancelled:
             self.signals.cancelled.emit()
-        except Exception as exc:  # noqa: BLE001 - forwarded to the GUI boundary
+        except Exception as exc:
             self.signals.error.emit(f"{type(exc).__name__}: {exc}")
         else:
             self.signals.result.emit(result)

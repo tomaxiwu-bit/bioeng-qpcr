@@ -29,15 +29,15 @@ from bioeng_qpcr.validation.rules import (
 from bioeng_qpcr.validation.types import RuleMetadata
 
 __all__ = [
-    "eff_001",
-    "ref_001",
-    "ntc_001",
-    "input_001",
-    "ref_002",
-    "rep_001",
-    "assay_001",
-    "register_all",
     "BUILTIN_RULES",
+    "assay_001",
+    "eff_001",
+    "input_001",
+    "ntc_001",
+    "ref_001",
+    "ref_002",
+    "register_all",
+    "rep_001",
 ]
 
 # ---------------------------------------------------------------------------

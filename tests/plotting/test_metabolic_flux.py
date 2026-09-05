@@ -5,8 +5,8 @@ from __future__ import annotations
 import matplotlib
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
-import pytest  # noqa: E402
+import matplotlib.pyplot as plt
+import pytest
 
 try:
     import cobra  # noqa: F401

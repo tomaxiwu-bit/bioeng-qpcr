@@ -276,13 +276,13 @@ def _format_outlier_report(result: Any) -> str:
     if result.chauvenet_groups:
         lines.append("Chauvenet-rejected wells (statistical evidence):")
         for group in result.chauvenet_groups:
-            for flag in group.chauvenet_flags:
-                lines.append(
-                    f"  {group.label}  well {flag.position}  "
-                    f"Cq={flag.cq:.2f}  z={flag.z_score:.2f}  "
-                    f"P={flag.tail_probability:.2e} < "
-                    f"{flag.threshold_probability:.3f}"
-                )
+            lines.extend(
+                f"  {group.label}  well {flag.position}  "
+                f"Cq={flag.cq:.2f}  z={flag.z_score:.2f}  "
+                f"P={flag.tail_probability:.2e} < "
+                f"{flag.threshold_probability:.3f}"
+                for flag in group.chauvenet_flags
+            )
         lines.append("")
 
     if result.review_groups:
@@ -771,7 +771,7 @@ def plot(
     import matplotlib
 
     matplotlib.use("Agg")
-    import matplotlib.pyplot as plt  # noqa: F401  (ensures pyplot is loaded)
+    import matplotlib.pyplot as plt
 
     from bioeng_qpcr.plotting import plot_cq_heatmap, plot_fold_change, save_figure
 

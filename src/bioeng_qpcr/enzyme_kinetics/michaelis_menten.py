@@ -17,10 +17,10 @@ import numpy as np
 from scipy.optimize import curve_fit
 
 __all__ = [
-    "MichaelisMentenResult",
     "LineweaverBurkResult",
-    "fit_michaelis_menten",
+    "MichaelisMentenResult",
     "fit_lineweaver_burk",
+    "fit_michaelis_menten",
     "read_kinetics_csv",
 ]
 

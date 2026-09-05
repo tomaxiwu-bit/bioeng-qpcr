@@ -108,7 +108,7 @@ class ValidationEngine:
             try:
                 result = func(experiment)
                 results.append(result)
-            except Exception as exc:  # noqa: BLE001 -- boundary around plugins
+            except Exception as exc:
                 if self._strict:
                     raise RuleExecutionError(metadata.rule_id, exc) from exc
                 results.append(

@@ -35,21 +35,21 @@ from bioeng_qpcr.statistics.replicate_models import (
 )
 
 __all__ = [
-    # Intervals
-    "ConfidenceInterval",
-    "mean_ci",
-    "proportion_ci",
-    "fold_change_ci",
-    # Replicate models
-    "ReplicateStats",
-    "summarize_replicates",
-    "pooled_std",
-    "two_group_ttest",
-    "LinearModelResult",
-    "linear_regression",
     # Bootstrap
     "BootstrapResult",
+    # Intervals
+    "ConfidenceInterval",
+    "LinearModelResult",
+    # Replicate models
+    "ReplicateStats",
     "bootstrap_mean",
     "bootstrap_median",
     "bootstrap_statistic",
+    "fold_change_ci",
+    "linear_regression",
+    "mean_ci",
+    "pooled_std",
+    "proportion_ci",
+    "summarize_replicates",
+    "two_group_ttest",
 ]

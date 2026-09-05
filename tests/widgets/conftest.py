@@ -11,8 +11,8 @@ from pathlib import Path
 import matplotlib
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
-import pytest  # noqa: E402
+import matplotlib.pyplot as plt
+import pytest
 
 # Suppress the expected UserWarning from plt.show() under the non-interactive
 # Agg backend; in real Jupyter usage an interactive backend is active.

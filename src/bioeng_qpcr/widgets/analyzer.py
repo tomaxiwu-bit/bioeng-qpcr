@@ -279,7 +279,7 @@ class QPCRAnalyzer:
         engine = ValidationEngine()
         try:
             report = engine.run(self._experiment)
-        except Exception as exc:  # noqa: BLE001 -- surface to the user
+        except Exception as exc:
             self._show_error(f"Validation failed:\n{exc}")
             return
         self._last_report = report
@@ -300,7 +300,7 @@ class QPCRAnalyzer:
             return
         try:
             batch = self._run_analysis(experiment, target, method, references)
-        except Exception as exc:  # noqa: BLE001 -- surface to the user
+        except Exception as exc:
             self._show_error(f"Analysis failed:\n{exc}")
             return
         self._last_batch = batch
@@ -330,7 +330,7 @@ class QPCRAnalyzer:
             else:
                 fig, _ax = plot_cq_heatmap(self._experiment)
                 title = "Cq heatmap"
-        except Exception as exc:  # noqa: BLE001 -- surface to the user
+        except Exception as exc:
             self._show_error(f"Plotting failed:\n{exc}")
             return
         with self._output:

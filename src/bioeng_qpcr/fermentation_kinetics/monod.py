@@ -25,11 +25,11 @@ from scipy.stats import t as student_t
 
 __all__ = [
     "MonodFitResult",
-    "monod_equation",
     "batch_fermentation_ode",
-    "solve_batch_fermentation",
     "fit_monod",
+    "monod_equation",
     "read_fermentation_csv",
+    "solve_batch_fermentation",
 ]
 
 

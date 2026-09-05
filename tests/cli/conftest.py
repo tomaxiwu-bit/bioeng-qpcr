@@ -29,8 +29,8 @@ from pathlib import Path
 import matplotlib
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
-import pytest  # noqa: E402
+import matplotlib.pyplot as plt
+import pytest
 
 #: Writable base directory for per-test temp folders, kept inside the project
 #: tree so it never depends on the (possibly locked) system temp folder.

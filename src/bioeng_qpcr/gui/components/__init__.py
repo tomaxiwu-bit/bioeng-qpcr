@@ -12,8 +12,8 @@ from bioeng_qpcr.gui.components.file_selector import FileSelector
 from bioeng_qpcr.gui.components.plot_canvas import PlotCanvas
 
 __all__ = [
-    "BasePanel",
     "BackgroundTask",
+    "BasePanel",
     "CancellationToken",
     "Card",
     "FileSelector",

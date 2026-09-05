@@ -5,13 +5,13 @@ from __future__ import annotations
 import matplotlib
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
+import matplotlib.pyplot as plt
 
-from bioeng_qpcr.fermentation_kinetics.monod import fit_monod  # noqa: E402
-from bioeng_qpcr.plotting.fermentation_kinetics import (  # noqa: E402
+from bioeng_qpcr.fermentation_kinetics.monod import fit_monod
+from bioeng_qpcr.plotting.fermentation_kinetics import (
     plot_fermentation_kinetics,
 )
-from tests.fermentation_kinetics.conftest import (  # noqa: E402
+from tests.fermentation_kinetics.conftest import (
     make_fermentation_data,
 )
 

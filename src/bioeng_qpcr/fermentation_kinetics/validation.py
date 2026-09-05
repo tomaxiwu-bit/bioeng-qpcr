@@ -18,8 +18,8 @@ import numpy as np
 
 __all__ = [
     "FermentationValidationResult",
-    "validate_mu_max_range",
     "validate_data_sufficiency",
+    "validate_mu_max_range",
 ]
 
 

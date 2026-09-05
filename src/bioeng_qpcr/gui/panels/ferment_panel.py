@@ -262,8 +262,7 @@ class FermentPanel(BasePanel):
                 "-" * 54,
             ]
         )
-        for warning in result.warnings:
-            lines.append(f"  [警告] {warning}")
+        lines.extend(f"  [警告] {warning}" for warning in result.warnings)
         mu_status = "通过" if mu_check.passed else "未通过"
         lines.append(f"  {mu_check.rule_id} (μmax 范围) [{mu_status}]")
         lines.append(f"    {mu_check.message}")

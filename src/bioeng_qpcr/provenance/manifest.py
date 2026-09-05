@@ -296,24 +296,30 @@ class ProvenanceManifest:
             "Package versions:",
         ]
         if self.package_versions:
-            for name in sorted(self.package_versions):
-                lines.append(f"  {name} = {self.package_versions[name]}")
+            lines.extend(
+                f"  {name} = {self.package_versions[name]}"
+                for name in sorted(self.package_versions)
+            )
         else:
             lines.append("  (none captured)")
 
         lines.append("")
         lines.append("Validation rules:")
         if self.ruleset_versions:
-            for rule_id in sorted(self.ruleset_versions):
-                lines.append(f"  {rule_id} = {self.ruleset_versions[rule_id]}")
+            lines.extend(
+                f"  {rule_id} = {self.ruleset_versions[rule_id]}"
+                for rule_id in sorted(self.ruleset_versions)
+            )
         else:
             lines.append("  (none captured)")
 
         lines.append("")
         lines.append("Analysis parameters:")
         if self.parameters:
-            for key in sorted(self.parameters):
-                lines.append(f"  {key} = {self.parameters[key]}")
+            lines.extend(
+                f"  {key} = {self.parameters[key]}"
+                for key in sorted(self.parameters)
+            )
         else:
             lines.append("  (none provided)")
         return "\n".join(lines)

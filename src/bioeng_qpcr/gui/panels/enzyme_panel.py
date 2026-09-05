@@ -140,7 +140,7 @@ class EnzymePanel(BasePanel):
 
         try:
             substrate, velocity, inhibitor = read_kinetics_csv(path)
-        except Exception as exc:  # noqa: BLE001 - report any read error to UI
+        except Exception as exc:
             self._show_error(f"读取 CSV 失败: {exc}")
             return
 
@@ -184,8 +184,7 @@ class EnzymePanel(BasePanel):
                 else "未定义（观测值无方差）"
             )
             lines.append(f"R²   = {r_squared}")
-            for warning in result.warnings:
-                lines.append(f"[警告] {warning}")
+            lines.extend(f"[警告] {warning}" for warning in result.warnings)
             if note:
                 lines.append("")
                 lines.append(f"[数据说明] {note}")
@@ -206,7 +205,7 @@ class EnzymePanel(BasePanel):
             self._render_figure(fig)
 
             self._emit_status("Michaelis-Menten 拟合完成。")
-        except Exception as exc:  # noqa: BLE001 - report fit error to UI
+        except Exception as exc:
             self._show_error(f"拟合失败: {exc}")
 
     # ------------------------------------------------------------------
@@ -221,7 +220,7 @@ class EnzymePanel(BasePanel):
 
         try:
             substrate, velocity, inhibitor = read_kinetics_csv(path)
-        except Exception as exc:  # noqa: BLE001 - report any read error to UI
+        except Exception as exc:
             self._show_error(f"读取 CSV 失败: {exc}")
             return
 
@@ -288,5 +287,5 @@ class EnzymePanel(BasePanel):
             self._render_figure(fig)
 
             self._emit_status(f"抑制判别完成: {label}。")
-        except Exception as exc:  # noqa: BLE001 - report classification error to UI
+        except Exception as exc:
             self._show_error(f"抑制判别失败: {exc}")

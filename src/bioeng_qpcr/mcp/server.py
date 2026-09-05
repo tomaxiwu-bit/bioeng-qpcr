@@ -56,10 +56,10 @@ from bioeng_qpcr.reporting import build_research_report
 from bioeng_qpcr.validation import RuleExecutionError, ValidationEngine
 
 matplotlib.use("Agg")  # headless backend; must precede the pyplot import
-import matplotlib.pyplot as plt  # noqa: E402
-from matplotlib.figure import Figure  # noqa: E402
+import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
 
-from bioeng_qpcr.plotting import (  # noqa: E402
+from bioeng_qpcr.plotting import (
     plot_cq_heatmap,
     plot_fermentation_kinetics,
     plot_flux_distribution,

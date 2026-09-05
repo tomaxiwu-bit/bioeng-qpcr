@@ -21,11 +21,11 @@ from bioeng_qpcr.validation.report import ValidationReport
 from bioeng_qpcr.validation.types import RuleMetadata, RuleResult
 
 __all__ = [
-    "RuleMetadata",
-    "RuleResult",
-    "validation_rule",
-    "RuleRegistry",
-    "ValidationEngine",
     "RuleExecutionError",
+    "RuleMetadata",
+    "RuleRegistry",
+    "RuleResult",
+    "ValidationEngine",
     "ValidationReport",
+    "validation_rule",
 ]

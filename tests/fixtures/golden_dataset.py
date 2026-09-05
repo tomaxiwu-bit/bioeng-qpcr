@@ -22,12 +22,12 @@ from bioeng_qpcr.domain.entities import Assay, Experiment, Sample, Well
 from bioeng_qpcr.domain.enums import InputLevel
 
 __all__ = [
-    "make_golden_pass",
     "make_golden_fail_eff",
-    "make_golden_no_ref",
-    "make_golden_no_ntc",
-    "make_golden_ntc_amplification",
     "make_golden_minimal",
+    "make_golden_no_ntc",
+    "make_golden_no_ref",
+    "make_golden_ntc_amplification",
+    "make_golden_pass",
 ]
 
 

@@ -58,37 +58,37 @@ from bioeng_qpcr.calculations.pfaffl import (
 )
 
 __all__ = [
-    # ΔCq
-    "DeltaCqResult",
     "AnalysisExclusion",
     "BatchAnalysisResult",
+    # Technical-replicate outlier detection
+    "ChauvenetFlag",
+    # ΔCq
+    "DeltaCqResult",
+    # ΔΔCq
+    "DeltaDeltaCqResult",
+    # Efficiency
+    "EfficiencyResult",
+    "GroupComparisonResult",
+    # Efficiency-corrected normalized quantities
+    "NormalizedQuantityResult",
+    # Pfaffl
+    "PfafflResult",
+    "ReplicateGroupReport",
+    "ReplicateOutlierResult",
+    "compare_groups",
     "delta_cq",
     "delta_cq_all",
     "delta_cq_batch",
-    # ΔΔCq
-    "DeltaDeltaCqResult",
     "delta_delta_cq",
     "delta_delta_cq_all",
     "delta_delta_cq_batch",
-    # Pfaffl
-    "PfafflResult",
-    "pfaffl",
-    "pfaffl_all",
-    "pfaffl_batch",
-    # Efficiency-corrected normalized quantities
-    "NormalizedQuantityResult",
-    "GroupComparisonResult",
-    "normalized_quantity",
-    "normalized_quantity_all",
-    "compare_groups",
-    # Technical-replicate outlier detection
-    "ChauvenetFlag",
-    "ReplicateGroupReport",
-    "ReplicateOutlierResult",
     "detect_replicate_outliers",
-    # Efficiency
-    "EfficiencyResult",
     "fit_efficiency_from_standard_curve",
     "fit_efficiency_from_trace",
     "fit_logistic_trace_shape",
+    "normalized_quantity",
+    "normalized_quantity_all",
+    "pfaffl",
+    "pfaffl_all",
+    "pfaffl_batch",
 ]

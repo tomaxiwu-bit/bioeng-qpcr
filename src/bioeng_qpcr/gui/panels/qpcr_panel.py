@@ -591,8 +591,10 @@ class QpcrPanel(BasePanel):
         if not exclusions:
             return []
         lines = ["排除的样本:"]
-        for item in exclusions:
-            lines.append(f"  • {item.sample_name} [{item.code}]: {item.reason}")
+        lines.extend(
+            f"  • {item.sample_name} [{item.code}]: {item.reason}"
+            for item in exclusions
+        )
         lines.append("")
         return lines
 
@@ -601,8 +603,7 @@ class QpcrPanel(BasePanel):
         if not warnings:
             return []
         lines = ["警告:"]
-        for warning in warnings:
-            lines.append(f"  • {warning}")
+        lines.extend(f"  • {warning}" for warning in warnings)
         lines.append("")
         return lines
 
@@ -625,6 +626,5 @@ class QpcrPanel(BasePanel):
 
         sep = "  ".join("-" * w for w in widths)
         lines = [render(headers), sep]
-        for row in str_rows:
-            lines.append(render(row))
+        lines.extend(render(row) for row in str_rows)
         return "\n".join(lines)

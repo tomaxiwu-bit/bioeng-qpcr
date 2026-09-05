@@ -46,12 +46,12 @@ from bioeng_qpcr.enzyme_kinetics.michaelis_menten import (
 )
 
 __all__ = [
-    "InhibitionType",
-    "InhibitionDataset",
-    "InhibitionResult",
-    "classify_inhibition",
     "GlobalInhibitionFit",
+    "InhibitionDataset",
     "InhibitionModelComparison",
+    "InhibitionResult",
+    "InhibitionType",
+    "classify_inhibition",
     "compare_inhibition_models",
 ]
 

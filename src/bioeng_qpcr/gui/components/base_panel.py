@@ -258,7 +258,7 @@ class BasePanel(QWidget):
             return
         try:
             callback(result)
-        except Exception as exc:  # noqa: BLE001 - GUI rendering boundary
+        except Exception as exc:
             self._show_error(f"结果处理失败: {exc}")
 
     @Slot(str)
@@ -280,7 +280,7 @@ class BasePanel(QWidget):
         self._background_busy_widgets = ()
         self._background_cancel_widget = None
 
-    def closeEvent(self, event) -> None:  # noqa: N802 - Qt API name
+    def closeEvent(self, event) -> None:
         if self._active_task is not None:
             self._active_task.cancel()
         super().closeEvent(event)

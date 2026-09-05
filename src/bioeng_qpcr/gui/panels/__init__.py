@@ -8,8 +8,8 @@ from bioeng_qpcr.gui.panels.ferment_panel import FermentPanel
 from bioeng_qpcr.gui.panels.qpcr_panel import QpcrPanel
 
 __all__ = [
-    "QpcrPanel",
     "EnzymePanel",
-    "FermentPanel",
     "FbaPanel",
+    "FermentPanel",
+    "QpcrPanel",
 ]

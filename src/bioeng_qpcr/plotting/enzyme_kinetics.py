@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from bioeng_qpcr.enzyme_kinetics.inhibition import InhibitionDataset
     from bioeng_qpcr.enzyme_kinetics.michaelis_menten import MichaelisMentenResult
 
-__all__ = ["plot_michaelis_menten", "plot_lineweaver_burk"]
+__all__ = ["plot_lineweaver_burk", "plot_michaelis_menten"]
 
 
 def plot_michaelis_menten(

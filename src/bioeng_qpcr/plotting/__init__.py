@@ -48,21 +48,21 @@ __all__ = [
     "PlotStyle",
     "apply_style",
     "create_figure",
-    "save_figure",
-    "styled_plot",
+    "plot_amplification_by_target",
     # amplification
     "plot_amplification_curves",
-    "plot_amplification_by_target",
-    # barplots
-    "plot_fold_change",
-    "plot_fold_change_with_ci",
     # heatmap
     "plot_cq_heatmap",
-    # enzyme kinetics
-    "plot_michaelis_menten",
-    "plot_lineweaver_burk",
     # fermentation kinetics
     "plot_fermentation_kinetics",
     # metabolic flux
     "plot_flux_distribution",
+    # barplots
+    "plot_fold_change",
+    "plot_fold_change_with_ci",
+    "plot_lineweaver_burk",
+    # enzyme kinetics
+    "plot_michaelis_menten",
+    "save_figure",
+    "styled_plot",
 ]

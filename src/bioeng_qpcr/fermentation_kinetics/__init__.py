@@ -26,18 +26,18 @@ from bioeng_qpcr.fermentation_kinetics.validation import (
 )
 
 __all__ = [
-    # Monod
-    "MonodFitResult",
-    "monod_equation",
-    "batch_fermentation_ode",
-    "solve_batch_fermentation",
-    "fit_monod",
-    "read_fermentation_csv",
-    # Identifiability
-    "IdentifiabilityResult",
-    "analyze_identifiability",
     # Validation
     "FermentationValidationResult",
-    "validate_mu_max_range",
+    # Identifiability
+    "IdentifiabilityResult",
+    # Monod
+    "MonodFitResult",
+    "analyze_identifiability",
+    "batch_fermentation_ode",
+    "fit_monod",
+    "monod_equation",
+    "read_fermentation_csv",
+    "solve_batch_fermentation",
     "validate_data_sufficiency",
+    "validate_mu_max_range",
 ]

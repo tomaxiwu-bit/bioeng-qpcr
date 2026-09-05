@@ -29,22 +29,22 @@ from bioeng_qpcr.enzyme_kinetics.validation import (
 )
 
 __all__ = [
-    # Michaelis-Menten
-    "MichaelisMentenResult",
-    "LineweaverBurkResult",
-    "fit_michaelis_menten",
-    "fit_lineweaver_burk",
-    "read_kinetics_csv",
+    "GlobalInhibitionFit",
+    "InhibitionDataset",
+    "InhibitionModelComparison",
+    "InhibitionResult",
     # Inhibition
     "InhibitionType",
-    "InhibitionDataset",
-    "InhibitionResult",
-    "classify_inhibition",
-    "GlobalInhibitionFit",
-    "InhibitionModelComparison",
-    "compare_inhibition_models",
     # Validation
     "KineticsValidationResult",
+    "LineweaverBurkResult",
+    # Michaelis-Menten
+    "MichaelisMentenResult",
+    "classify_inhibition",
+    "compare_inhibition_models",
+    "fit_lineweaver_burk",
+    "fit_michaelis_menten",
+    "read_kinetics_csv",
     "validate_km_range",
     "validate_substrate_span",
 ]

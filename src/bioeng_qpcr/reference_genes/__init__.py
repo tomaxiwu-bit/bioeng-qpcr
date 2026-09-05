@@ -31,12 +31,12 @@ from bioeng_qpcr.reference_genes.normfinder import (
 )
 
 __all__ = [
+    "ConsensusResult",
     "GeNormResult",
-    "genorm",
-    "NormFinderResult",
     "ModelBasedNormFinderResult",
+    "NormFinderResult",
+    "consensus_ranking",
+    "genorm",
     "normfinder",
     "variance_stability_score",
-    "ConsensusResult",
-    "consensus_ranking",
 ]
