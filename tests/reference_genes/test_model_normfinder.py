@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import math
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 
@@ -90,7 +91,7 @@ def colon_result() -> ModelBasedNormFinderResult:
 class TestNormqPCRColonBenchmark:
     """Expected values are Table 3 values reproduced by NormqPCR 1.58.0."""
 
-    EXPECTED = {
+    EXPECTED: ClassVar[dict[str, float]] = {
         "UBC": 0.1821707,
         "GAPD": 0.2146061,
         "TPT1": 0.2202956,

@@ -452,10 +452,7 @@ def _information_criteria(rss: float, n: int, k: int) -> tuple[float, float, flo
     log_term = n * np.log(max(rss, eps) / n)
     aic = log_term + 2 * k
     bic = log_term + k * np.log(n)
-    if n - k - 1 > 0:
-        aicc = aic + 2 * k * (k + 1) / (n - k - 1)
-    else:
-        aicc = np.inf
+    aicc = aic + 2 * k * (k + 1) / (n - k - 1) if n - k - 1 > 0 else np.inf
     return float(aic), float(aicc), float(bic)
 
 

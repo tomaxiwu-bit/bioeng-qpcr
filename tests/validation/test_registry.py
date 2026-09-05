@@ -28,12 +28,12 @@ from bioeng_qpcr.validation.types import RuleMetadata, RuleResult
 
 
 def _make_metadata(**overrides) -> RuleMetadata:
-    defaults = dict(
-        rule_id="EFF-001",
-        name="Efficiency range check",
-        description="Checks efficiency range.",
-        miqe_section="MIQE 3.2",
-    )
+    defaults = {
+        "rule_id": "EFF-001",
+        "name": "Efficiency range check",
+        "description": "Checks efficiency range.",
+        "miqe_section": "MIQE 3.2",
+    }
     defaults.update(overrides)
     return RuleMetadata(**defaults)
 

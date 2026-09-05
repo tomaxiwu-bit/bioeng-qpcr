@@ -11,6 +11,8 @@ Uses synthetic experiments with known Cq values to verify:
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 import pytest
 
 from bioeng_qpcr.domain.entities import Assay, Experiment, Sample, Well
@@ -125,8 +127,13 @@ class TestNormFinderStability:
 class TestNormFinderGroupStructure:
     """Two groups expose the inter/intra variance decomposition."""
 
-    GROUPS = {"C1": "control", "C2": "control", "T1": "treated", "T2": "treated"}
-    SAMPLES = ["C1", "C2", "T1", "T2"]
+    GROUPS: ClassVar[dict[str, str]] = {
+        "C1": "control",
+        "C2": "control",
+        "T1": "treated",
+        "T2": "treated",
+    }
+    SAMPLES: ClassVar[list[str]] = ["C1", "C2", "T1", "T2"]
 
     @pytest.fixture
     def experiment(self) -> Experiment:

@@ -249,10 +249,7 @@ def validate(
     except RuleExecutionError as exc:
         _fail(f"Internal validation error: {exc}")
 
-    if output_format == "json":
-        content = report.to_json(indent=2)
-    else:
-        content = report.to_text()
+    content = report.to_json(indent=2) if output_format == "json" else report.to_text()
 
     _emit(content, output_file)
 

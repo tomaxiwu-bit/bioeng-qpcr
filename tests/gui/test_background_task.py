@@ -209,7 +209,7 @@ def test_fba_panel_dispatches_model_load_and_solve_to_worker(monkeypatch) -> Non
         return model
 
     monkeypatch.setattr(fba_panel, "_COBRA_AVAILABLE", True)
-    monkeypatch.setattr(fba_panel, "load_model", load)
+    monkeypatch.setattr(fba_panel, "load_model", load, raising=False)
     monkeypatch.setattr(fba_panel, "run_fba", lambda *_args, **_kwargs: result)
     monkeypatch.setattr(
         fba_panel, "validate_objective_feasibility", lambda _result: validation

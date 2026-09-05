@@ -50,11 +50,7 @@ def _experiment_with_groups(
                     cq=None if cq is None else float(cq),
                     replicate_type=ReplicateType.TECHNICAL,
                     replicate_group=replicate_group,
-                    cq_status=(
-                        "undetermined" if cq is None
-                        else "determined" if cq >= 0
-                        else "determined"
-                    ),
+                    cq_status=("undetermined" if cq is None else "determined"),
                 )
             )
     return Experiment(

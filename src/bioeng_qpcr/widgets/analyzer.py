@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import html
 from dataclasses import asdict, is_dataclass
-from typing import Any
+from typing import Any, ClassVar
 
 import pandas as pd
 
@@ -64,14 +64,14 @@ class QPCRAnalyzer:
     """
 
     # (label, value) pairs for the method dropdown.
-    _METHOD_OPTIONS: list[tuple[str, str]] = [
+    _METHOD_OPTIONS: ClassVar[list[tuple[str, str]]] = [
         ("Normalized Quantity (efficiency-corrected)", "normalized_quantity"),
         ("Pfaffl (efficiency-corrected ratio)", "pfaffl"),
         ("\u0394\u0394Cq (Livak, assumes 100% efficiency)", "delta_delta_cq"),
     ]
 
     # Key columns surfaced per method in the results table.
-    _RESULT_COLUMNS: dict[str, list[str]] = {
+    _RESULT_COLUMNS: ClassVar[dict[str, list[str]]] = {
         "normalized_quantity": [
             "sample_name",
             "mean_cq_target",
@@ -325,10 +325,10 @@ class QPCRAnalyzer:
         plottable = batch is not None and self._results_are_plottable(batch.results)
         try:
             if plottable:
-                fig, _ax = plot_fold_change(batch.results)
+                _fig, _ax = plot_fold_change(batch.results)
                 title = "Fold change per sample"
             else:
-                fig, _ax = plot_cq_heatmap(self._experiment)
+                _fig, _ax = plot_cq_heatmap(self._experiment)
                 title = "Cq heatmap"
         except Exception as exc:
             self._show_error(f"Plotting failed:\n{exc}")

@@ -11,6 +11,7 @@ Provides a GUI for:
 
 from __future__ import annotations
 
+import contextlib
 from typing import Any
 
 import numpy as np
@@ -115,12 +116,10 @@ class EnzymePanel(BasePanel):
         self._plot_canvas.set_figure(fig)
         # Avoid leaking pyplot-managed figures across repeated analyses.
         if previous is not fig:
-            try:
+            with contextlib.suppress(Exception):
                 import matplotlib.pyplot as plt
 
                 plt.close(previous)
-            except Exception:
-                pass
 
     @staticmethod
     def _format_ci(ci: tuple[float, float] | None) -> str:
