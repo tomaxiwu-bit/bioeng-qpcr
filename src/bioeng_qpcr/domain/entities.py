@@ -41,6 +41,10 @@ class Well:
             Identifier grouping replicates (e.g. ``"s1_t1_r1"``).
         cq_status:
             One of ``"determined"``, ``"undetermined"``, ``"no_template"``.
+        n0, amp_eff, corrected_cq:
+            RDML 1.3 per-well analysis outputs: estimated template quantity
+            (N0), per-well amplification efficiency (fold increase per cycle)
+            and baseline-corrected Cq, when the source file reports them.
     """
 
     position: str
@@ -50,6 +54,9 @@ class Well:
     replicate_type: ReplicateType = ReplicateType.SINGLE
     replicate_group: str | None = None
     cq_status: str = "determined"
+    n0: float | None = None
+    amp_eff: float | None = None
+    corrected_cq: float | None = None
 
     def __post_init__(self) -> None:
         if not self.position.strip():
@@ -125,6 +132,10 @@ class Assay:
             Reverse primer sequence.
         probe:
             Probe sequence (if applicable).
+        dye_chemistry:
+            RDML 1.3 dye detection chemistry (e.g. ``"hydrolysis probe"``,
+            ``"non-saturating DNA binding dye"``, ``"intercalating dye"``).
+            ``None`` when the chemistry is not declared in the source.
         lod_cq, lloq_cq:
             Assay-specific Cq at the limit of detection and lower limit of
             quantification, when experimentally established.
@@ -138,6 +149,7 @@ class Assay:
     primer_forward: str | None = None
     primer_reverse: str | None = None
     probe: str | None = None
+    dye_chemistry: str | None = None
     lod_cq: float | None = None
     lloq_cq: float | None = None
 

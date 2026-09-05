@@ -520,6 +520,133 @@ class TestRawTraces:
         assert any(i.code == "INVALID_TRACE_POINT" for i in excinfo.value.issues)
 
 
+class TestRdml13:
+    """RDML 1.3 additions: per-target sample types, analysis outputs, dye."""
+
+    def test_per_target_ntc_type(self, tmp_path):
+        samples = (
+            '<sample id="S1"><type>unkn</type>'
+            '<type targetId="T1">ntc</type></sample>'
+        )
+        react = (
+            '<react id="1"><sample id="S1"/>'
+            '<data><tar id="T1"/><cq>20.0</cq></data>'
+            '<data><tar id="T2"/><cq>22.0</cq></data>'
+            "</react>"
+        )
+
+        experiment = read_rdml(
+            _write(tmp_path, _rdml_doc(react, samples=samples))
+        )
+
+        by_target = {w.target_name: w for w in experiment.wells}
+        assert by_target["T1"].cq_status == "no_template"
+        assert by_target["T1"].is_ntc is True
+        assert by_target["T2"].cq_status == "determined"
+        assert by_target["T2"].is_ntc is False
+        assert by_target["T1"].cq == pytest.approx(20.0)
+
+    def test_default_sample_type_applies_to_other_targets(self, tmp_path):
+        samples = (
+            '<sample id="S1"><type>ntc</type><type targetId="T2">unkn</type></sample>'
+        )
+        react = (
+            '<react id="1"><sample id="S1"/>'
+            '<data><tar id="T1"/><cq>20.0</cq></data>'
+            '<data><tar id="T2"/><cq>22.0</cq></data>'
+            "</react>"
+        )
+
+        experiment = read_rdml(_write(tmp_path, _rdml_doc(react, samples=samples)))
+
+        by_target = {w.target_name: w for w in experiment.wells}
+        assert by_target["T1"].cq_status == "no_template"
+        assert by_target["T2"].cq_status == "determined"
+
+    def test_analysis_outputs_with_correction_factors(self, tmp_path):
+        react = (
+            '<react id="1"><sample id="S1"/><data><tar id="T1"/><cq>20.0</cq>'
+            "<N0>100.0</N0><ampEff>1.95</ampEff>"
+            "<corrF>0.9</corrF><corrP>0.8</corrP><corrCq>21.2</corrCq>"
+            "</data></react>"
+        )
+
+        experiment = read_rdml(_write(tmp_path, _rdml_doc(react)))
+
+        well = experiment.wells[0]
+        assert well.n0 == pytest.approx(112.5)
+        assert well.amp_eff == pytest.approx(0.95)
+        assert well.corrected_cq == pytest.approx(21.2)
+
+    def test_na_sentinels_in_analysis_outputs(self, tmp_path):
+        react = (
+            '<react id="1"><sample id="S1"/><data><tar id="T1"/><cq>20.0</cq>'
+            "<N0>-1.0</N0><ampEff>2.0</ampEff><corrCq>-1.0</corrCq>"
+            "</data></react>"
+        )
+
+        experiment = read_rdml(_write(tmp_path, _rdml_doc(react)))
+
+        well = experiment.wells[0]
+        assert well.n0 is None
+        assert well.amp_eff == pytest.approx(1.0)
+        assert well.corrected_cq is None
+
+    def test_nondefault_amp_eff_converted_to_fractional(self, tmp_path):
+        react = (
+            '<react id="1"><sample id="S1"/><data><tar id="T1"/><cq>20.0</cq>'
+            "<ampEff>1.90</ampEff></data></react>"
+        )
+
+        experiment = read_rdml(_write(tmp_path, _rdml_doc(react)))
+
+        assert experiment.wells[0].amp_eff == pytest.approx(0.90)
+
+    def test_dye_chemistry_resolved_from_dye_master(self, tmp_path):
+        doc = (
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            '<rdml version="1.3" xmlns="http://www.rdml.org">'
+            '<sample id="S1"><type>unkn</type></sample>'
+            '<dye id="SYBR"><dyeChemistry>non-saturating DNA binding dye'
+            "</dyeChemistry></dye>"
+            '<dye id="FAM"><dyeChemistry>hydrolysis probe</dyeChemistry></dye>'
+            '<target id="T1"><type>toi</type><dyeId id="SYBR"/></target>'
+            '<target id="T2"><type>toi</type><dyeId id="FAM"/></target>'
+            '<target id="T3"><type>toi</type></target>'
+            '<experiment id="exp"><run id="r1"><pcrFormat>'
+            "<rows>8</rows><columns>12</columns><rowLabel>ABC</rowLabel>"
+            "<columnLabel>123</columnLabel></pcrFormat>"
+            '<react id="1"><sample id="S1"/>'
+            '<data><tar id="T1"/><cq>20.0</cq></data></react>'
+            '<react id="2"><sample id="S1"/>'
+            '<data><tar id="T2"/><cq>21.0</cq></data></react>'
+            '<react id="3"><sample id="S1"/>'
+            '<data><tar id="T3"/><cq>22.0</cq></data></react>'
+            "</run></experiment></rdml>"
+        )
+
+        experiment = read_rdml(_write(tmp_path, doc))
+
+        assert experiment.assays["T1"].dye_chemistry == (
+            "non-saturating DNA binding dye"
+        )
+        assert experiment.assays["T2"].dye_chemistry == "hydrolysis probe"
+        assert experiment.assays["T3"].dye_chemistry is None
+        assert experiment.metadata["rdml_version"] == "1.3"
+
+    def test_invalid_analysis_number_rejected(self, tmp_path):
+        react = (
+            '<react id="1"><sample id="S1"/><data><tar id="T1"/><cq>20.0</cq>'
+            "<N0>abc</N0></data></react>"
+        )
+        path = _write(tmp_path, _rdml_doc(react))
+
+        with pytest.raises(CSVValidationError) as excinfo:
+            read_rdml(path)
+
+        assert any(i.code == "INVALID_NUMERIC_FIELD" for i in excinfo.value.issues)
+
+
 class TestLenientMode:
     def test_errors_recorded_not_raised(self, tmp_path):
         doc = _rdml_doc(

@@ -16,16 +16,28 @@ registration as independent concerns.
 
 from bioeng_qpcr.validation.decorator import validation_rule
 from bioeng_qpcr.validation.engine import RuleExecutionError, ValidationEngine
+from bioeng_qpcr.validation.miqe2 import (
+    MIQE2_CATEGORIES,
+    MIQE2_FIELDS,
+    Miqe2ChecklistItem,
+    Miqe2Report,
+    miqe2_checklist,
+)
 from bioeng_qpcr.validation.registry import RuleRegistry
 from bioeng_qpcr.validation.report import ValidationReport
 from bioeng_qpcr.validation.types import RuleMetadata, RuleResult
 
 __all__ = [
+    "MIQE2_CATEGORIES",
+    "MIQE2_FIELDS",
+    "Miqe2ChecklistItem",
+    "Miqe2Report",
     "RuleExecutionError",
     "RuleMetadata",
     "RuleRegistry",
     "RuleResult",
     "ValidationEngine",
     "ValidationReport",
+    "miqe2_checklist",
     "validation_rule",
 ]

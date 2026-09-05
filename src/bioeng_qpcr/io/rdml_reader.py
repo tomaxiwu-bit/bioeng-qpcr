@@ -23,11 +23,21 @@ Schema conventions implemented
   well.
 * ``data/excl`` present means the instrument software excluded the entry
   from evaluation; the well is skipped and the exclusion recorded.
-* ``sample/type`` ``ntc`` marks no-template controls.
+* ``sample/type`` ``ntc`` marks no-template controls.  In RDML 1.3 the
+  type is resolved per target (``<type targetId=...>``) and the
+  ``data`` entry's Cq status as well as its NTC classification use the
+  target-specific type.
 * ``target/type`` ``ref`` marks reference genes.
 * ``target/amplificationEfficiency`` is the per-cycle amplification
   factor (1.95 = 95 % efficiency) and is converted to the library's
   fractional convention (0.95).
+* RDML 1.3 analysis outputs (``data/N0``, ``data/ampEff``,
+  ``data/corrF``, ``data/corrP``, ``data/corrCq``) populate the well's
+  ``n0``, ``amp_eff`` and ``corrected_cq`` fields; ``-1.0`` is the "not
+  available" sentinel and ``corrN0 = (N0 * corrF) / corrP`` is applied
+  when either correction factor is present.
+* ``target/dyeId`` resolves the ``dyeChemistry`` declared on a
+  ``<dye>`` master onto the assay's ``dye_chemistry`` field.
 * ``run/pcrFormat`` converts the row-first ``react`` id into a plate
   address such as ``A01`` when the format allows.
 * ``sample/annotation`` with property ``group`` maps to the sample group,
@@ -82,6 +92,7 @@ _ERROR_CODES: frozenset[str] = frozenset(
         "DUPLICATE_REACT",
         "INVALID_CQ",
         "INVALID_EFFICIENCY",
+        "INVALID_NUMERIC_FIELD",
         "INVALID_SAMPLE_TYPE",
         "INVALID_TARGET_TYPE",
         "INVALID_TRACE_POINT",
@@ -242,25 +253,40 @@ def _parse_pcr_format(run_el: ET.Element) -> tuple[int, int, str]:
 
 def _parse_samples(
     root: ET.Element, issues: list[CSVValidationIssue]
-) -> tuple[dict[str, str], dict[str, str]]:
-    """Return ``(sample_types, sample_groups)`` from ``<sample>`` masters."""
-    sample_types: dict[str, str] = {}
+) -> tuple[dict[str, dict[str | None, str]], dict[str, str]]:
+    """Return ``(sample_types, sample_groups)`` from ``<sample>`` masters.
+
+    *sample_types* maps a sample id to ``{target_id_or_None: type}``.  RDML
+    1.3 declares ``<type>`` as a repeatable ``sampleTargetType`` with an
+    optional ``targetId``, so a sample may carry a different type per target;
+    a ``targetId``-less entry is the sample-wide default (``"unkn"`` when
+    absent).
+    """
+    sample_types: dict[str, dict[str | None, str]] = {}
     sample_groups: dict[str, str] = {}
     for sample_el in _children(root, "sample"):
         sample_id = (sample_el.get("id") or "").strip()
         if not sample_id:
             continue
-        type_text = (_text(sample_el, "type") or "unkn").strip()
-        if type_text not in _SAMPLE_TYPES:
-            _add_issue(
-                issues,
-                code="INVALID_SAMPLE_TYPE",
-                message=f"unknown sample type; expected one of {sorted(_SAMPLE_TYPES)}",
-                location=f"sample '{sample_id}'",
-                value=type_text,
-            )
-            type_text = "unkn"
-        sample_types[sample_id] = type_text
+
+        per_target: dict[str | None, str] = {}
+        for type_el in _children(sample_el, "type"):
+            type_text = (type_el.text or "").strip() or "unkn"
+            if type_text not in _SAMPLE_TYPES:
+                _add_issue(
+                    issues,
+                    code="INVALID_SAMPLE_TYPE",
+                    message=(
+                        "unknown sample type; expected one of "
+                        f"{sorted(_SAMPLE_TYPES)}"
+                    ),
+                    location=f"sample '{sample_id}'",
+                    value=type_text,
+                )
+                type_text = "unkn"
+            target_ref = (type_el.get("targetId") or "").strip() or None
+            per_target[target_ref] = type_text
+        sample_types[sample_id] = per_target or {None: "unkn"}
 
         for annotation_el in _children(sample_el, "annotation"):
             property_name = (_text(annotation_el, "property") or "").strip()
@@ -281,10 +307,44 @@ def _parse_samples(
     return sample_types, sample_groups
 
 
+def _sample_type_for(
+    sample_types: dict[str, dict[str | None, str]],
+    sample_id: str,
+    target_id: str,
+) -> str:
+    """Resolve a sample's type at the target level (RDML 1.3 semantics).
+
+    Preference order: an exact per-target type, then the sample-wide default,
+    then any single declared type, then ``"unkn"``.
+    """
+    per_target = sample_types.get(sample_id) or {}
+    if target_id in per_target:
+        return per_target[target_id]
+    if None in per_target:
+        return per_target[None]
+    if per_target:
+        return next(iter(per_target.values()))
+    return "unkn"
+
+
+def _parse_dye_chemistry(root: ET.Element) -> dict[str, str]:
+    """Map dye ids to their declared chemistry from ``<dye>`` masters.
+
+    RDML 1.3 declares the detection chemistry on the dye master
+    (``<dyeChemistry>``); targets reference a dye via ``<dyeId id=...>``.
+    """
+    return {
+        (dye_el.get("id") or "").strip(): (_text(dye_el, "dyeChemistry") or "").strip()
+        for dye_el in _children(root, "dye")
+        if (dye_el.get("id") or "").strip()
+    }
+
+
 def _parse_targets(
     root: ET.Element, issues: list[CSVValidationIssue]
 ) -> dict[str, dict[str, Any]]:
     """Parse ``<target>`` masters into raw assay metadata."""
+    dye_chemistry_by_id = _parse_dye_chemistry(root)
     targets: dict[str, dict[str, Any]] = {}
     for target_el in _children(root, "target"):
         target_id = (target_el.get("id") or "").strip()
@@ -328,12 +388,16 @@ def _parse_targets(
         primer_reverse = _oligo_sequence(sequences_el, "reversePrimer")
         probe = _oligo_sequence(sequences_el, "probe1")
 
+        dye_id = _ref_id(_child(target_el, "dyeId"))
+        dye_chemistry = dye_chemistry_by_id.get(dye_id)
+
         targets[target_id] = {
             "is_reference": type_text == _REFERENCE_TARGET_TYPE,
             "efficiency": efficiency,
             "primer_forward": primer_forward,
             "primer_reverse": primer_reverse,
             "probe": probe,
+            "dye_chemistry": dye_chemistry,
         }
     return targets
 
@@ -394,6 +458,68 @@ def _parse_cq(
         )
         return None
     return value
+
+
+def _analysis_number(
+    data_el: ET.Element,
+    name: str,
+    *,
+    location: str,
+    issues: list[CSVValidationIssue],
+) -> float | None:
+    """Parse an optional numeric sibling, honouring RDML's ``-1.0`` sentinel."""
+    text = _text(data_el, name)
+    if not text:
+        return None
+    try:
+        value = float(text)
+    except ValueError:
+        _add_issue(
+            issues,
+            code="INVALID_NUMERIC_FIELD",
+            message=f"{name} is not a number",
+            location=location,
+            value=text,
+        )
+        return None
+    if not math.isfinite(value):
+        return None
+    return None if value == -1.0 else value
+
+
+def _parse_analysis_outputs(
+    data_el: ET.Element,
+    *,
+    location: str,
+    issues: list[CSVValidationIssue],
+) -> tuple[float | None, float | None, float | None]:
+    """Return ``(n0, amp_eff, corrected_cq)`` from RDML 1.3 analysis outputs.
+
+    * ``N0``     -> template quantity (arbitrary fluorescence units).
+    * ``ampEff`` -> per-cycle amplification factor, converted to the library's
+      fractional convention (1.95 -> 0.95); ``2.0``/absent means 1.0.
+    * ``corrCq[]``-> baseline-corrected Cq for downstream quantification.
+    * The corrected quantity ``corrN0 = (N0 * corrF) / corrP`` is applied to
+      ``N0`` when either correction factor is present (both default to 1.0).
+    """
+    n0 = _analysis_number(data_el, "N0", location=location, issues=issues)
+    corr_f = _analysis_number(data_el, "corrF", location=location, issues=issues)
+    corr_p = _analysis_number(data_el, "corrP", location=location, issues=issues)
+    if n0 is not None and (corr_f is not None or corr_p is not None):
+        n0 = (n0 * (corr_f or 1.0)) / (corr_p or 1.0)
+
+    amp_factor = _analysis_number(data_el, "ampEff", location=location, issues=issues)
+    amp_eff: float | None = None
+    if amp_factor is not None:
+        if amp_factor <= 0:
+            amp_eff = None
+        else:
+            amp_eff = amp_factor - 1.0
+
+    corrected_cq = _analysis_number(
+        data_el, "corrCq", location=location, issues=issues
+    )
+    return n0, amp_eff, corrected_cq
 
 
 def _parse_adp(
@@ -596,7 +722,6 @@ def read_rdml(
                     value=sample_ref,
                 )
                 continue
-            is_ntc = sample_types[sample_ref] == _NTC_SAMPLE_TYPE
 
             base_position = (
                 _plate_position(react_no, rows, columns, row_label)
@@ -648,11 +773,16 @@ def read_rdml(
                     position = f"{run_prefix}{base_position}"
 
                 location = f"run '{run_id}', well {position}"
+                sample_type = _sample_type_for(sample_types, sample_ref, target_ref)
+                is_ntc = sample_type == _NTC_SAMPLE_TYPE
                 cq = _parse_cq(data_el, issues, location=location)
                 cq_status = (
                     "no_template"
                     if is_ntc
                     else ("determined" if cq is not None else "undetermined")
+                )
+                n0, amp_eff, corrected_cq = _parse_analysis_outputs(
+                    data_el, location=location, issues=issues
                 )
                 wells.append(
                     Well(
@@ -663,6 +793,9 @@ def read_rdml(
                         replicate_type=ReplicateType.SINGLE,
                         replicate_group=None,
                         cq_status=cq_status,
+                        n0=n0,
+                        amp_eff=amp_eff,
+                        corrected_cq=corrected_cq,
                     )
                 )
                 data_index += 1
@@ -726,6 +859,7 @@ def read_rdml(
             primer_forward=target_infos[target_id]["primer_forward"],
             primer_reverse=target_infos[target_id]["primer_reverse"],
             probe=target_infos[target_id]["probe"],
+            dye_chemistry=target_infos[target_id]["dye_chemistry"],
         )
         for target_id in sorted(referenced_targets)
     }
