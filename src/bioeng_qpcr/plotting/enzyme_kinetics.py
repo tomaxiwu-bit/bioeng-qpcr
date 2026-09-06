@@ -54,7 +54,7 @@ def plot_michaelis_menten(
     ax.plot(
         s_smooth,
         v_smooth,
-        color="#dc2626",
+        color="#b05730",
         linewidth=2,
         label=f"Fit (Vmax={result.vmax:.2f}, Km={result.km:.2f})",
     )

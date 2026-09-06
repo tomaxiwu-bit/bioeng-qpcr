@@ -68,7 +68,7 @@ class MainWindow(QMainWindow):
         # --- Status bar ---
         self.statusBar().showMessage("就绪 · 请选择数据文件开始分析")
         runtime_status = QLabel("● 本地运行")
-        runtime_status.setStyleSheet("color: #29845a; padding-right: 10px;")
+        runtime_status.setStyleSheet("color: #8ca06f; padding-right: 10px;")
         runtime_status.setToolTip("数据仅在本机处理，不会自动上传")
         self.statusBar().addPermanentWidget(runtime_status)
 
@@ -189,7 +189,7 @@ class _ErrorPanel(QWidget):
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         label = QLabel(message)
-        label.setStyleSheet("color: #ef4444; font-size: 16px;")
+        label.setStyleSheet("color: #c43a39; font-size: 16px;")
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(label)
 

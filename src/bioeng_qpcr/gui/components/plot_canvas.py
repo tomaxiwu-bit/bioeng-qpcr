@@ -8,9 +8,22 @@ GUI backend on headless environments.
 
 from __future__ import annotations
 
+import matplotlib as mpl
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from PySide6.QtWidgets import QSizePolicy
+
+# Configure matplotlib to use CJK-compatible fonts so Chinese text in
+# axis labels, titles and empty-state placeholders renders correctly.
+mpl.rcParams["font.sans-serif"] = [
+    "Microsoft YaHei",
+    "Microsoft YaHei UI",
+    "SimHei",
+    "Noto Sans CJK SC",
+    "WenQuanYi Micro Hei",
+    "DejaVu Sans",
+]
+mpl.rcParams["axes.unicode_minus"] = False
 
 
 class PlotCanvas(FigureCanvas):
@@ -30,8 +43,8 @@ class PlotCanvas(FigureCanvas):
 
     def show_empty_state(
         self,
-        title: str = "Chart preview",
-        subtitle: str = "Run an analysis to visualize the results",
+        title: str = "图表预览",
+        subtitle: str = "运行分析后将在此显示可视化结果",
     ) -> None:
         """Render a calm, informative placeholder instead of a blank canvas."""
         self.figure.clear()
@@ -46,7 +59,7 @@ class PlotCanvas(FigureCanvas):
             va="center",
             fontsize=12,
             fontweight="bold",
-            color="#64748b",
+            color="#6e6d68",
             transform=axis.transAxes,
         )
         axis.text(
@@ -56,7 +69,7 @@ class PlotCanvas(FigureCanvas):
             ha="center",
             va="center",
             fontsize=9,
-            color="#9aa7b9",
+            color="#908e84",
             transform=axis.transAxes,
         )
         self.figure.subplots_adjust(left=0, right=1, top=1, bottom=0)

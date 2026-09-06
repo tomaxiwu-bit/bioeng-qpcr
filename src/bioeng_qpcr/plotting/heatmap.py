@@ -12,12 +12,21 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
+from matplotlib.colors import LinearSegmentedColormap
 
 from bioeng_qpcr.domain.entities import Experiment
 from bioeng_qpcr.plotting.style import PlotStyle, apply_style, create_figure
 
-# Light grey used for masked (missing) cells so they read as "no data".
-_BAD_COLOR = "#cccccc"
+# Light warm grey used for masked (missing) cells so they read as "no data".
+_BAD_COLOR = "#e3e0d4"
+
+# Custom terracotta colormap: low Cq (high expression) = bright cream,
+# high Cq (low expression) = deep terracotta. Aligned with the Warm
+# Editorial Science palette from the Claude Design Library.
+_TERRACOTTA_CMAP = LinearSegmentedColormap.from_list(
+    "terracotta",
+    [("#f8e3d8"), ("#e8a98f"), ("#d97757"), ("#b05730"), ("#4d3528")],
+)
 
 
 def plot_cq_heatmap(
@@ -68,9 +77,9 @@ def plot_cq_heatmap(
 
     masked = np.ma.masked_invalid(matrix)
 
-    # hot_r: low values -> bright (white/yellow), high values -> dark (black).
-    # This matches "low Cq (high expression) = bright".
-    cmap = plt.get_cmap("hot_r").with_extremes(bad=_BAD_COLOR)
+    # Terracotta colormap: low Cq (high expression) = bright cream,
+    # high Cq (low expression) = deep terracotta.
+    cmap = _TERRACOTTA_CMAP.with_extremes(bad=_BAD_COLOR)
     im = ax.imshow(masked, cmap=cmap, aspect="auto")
 
     cbar = fig.colorbar(im, ax=ax)

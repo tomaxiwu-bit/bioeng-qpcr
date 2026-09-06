@@ -47,7 +47,10 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from bioeng_qpcr.domain.entities import Experiment
-from bioeng_qpcr.reference_genes._matrix import build_reference_matrix
+from bioeng_qpcr.reference_genes._matrix import (
+    build_reference_matrix,
+    resolve_candidate_genes,
+)
 
 # ---------------------------------------------------------------------------
 # Result dataclass
@@ -91,33 +94,6 @@ class GeNormResult:
 
 # Conventional geNorm cut-off for the pairwise variation.
 _PAIRWISE_THRESHOLD = 0.15
-
-
-def _resolve_candidates(
-    experiment: Experiment, candidate_targets: list[str] | None
-) -> list[str]:
-    """Resolve the list of candidate reference genes.
-
-    If *candidate_targets* is ``None`` the registered reference genes are
-    used.  Targets of interest are never silently promoted to reference-gene
-    candidates.  Returns a sorted list of unique candidate names.
-    """
-    if candidate_targets is not None:
-        raw = list(candidate_targets)
-    else:
-        raw = list(experiment.reference_targets)
-        if not raw:
-            raise ValueError(
-                "No reference-gene candidates are designated. Mark assays "
-                "with is_reference=True or pass candidate_targets explicitly."
-            )
-    seen: set[str] = set()
-    unique: list[str] = []
-    for name in raw:
-        if name not in seen:
-            seen.add(name)
-            unique.append(name)
-    return sorted(unique)
 
 
 def _compute_m_values(matrix: np.ndarray, gene_indices: list[int]) -> dict[int, float]:
@@ -190,7 +166,7 @@ def genorm(
             samples with complete Cq data remain, or a candidate lacks a
             measured positive amplification efficiency.
     """
-    candidates = _resolve_candidates(experiment, candidate_targets)
+    candidates = resolve_candidate_genes(experiment, candidate_targets)
     if len(candidates) < 2:
         raise ValueError(
             f"geNorm requires at least 2 candidate genes, got {len(candidates)}."

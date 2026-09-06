@@ -17,10 +17,10 @@ from matplotlib.figure import Figure
 
 from bioeng_qpcr.plotting.style import PlotStyle, apply_style, create_figure
 
-# Semantic colours for up/down regulation.  Green = up-regulated (>=1),
-# red = down-regulated (<1).
-_UP_COLOR = "#4CAF50"
-_DOWN_COLOR = "#E53935"
+# Semantic colours for up/down regulation.  Sage = up-regulated (>=1),
+# warm red = down-regulated (<1). Aligned with the Warm Editorial palette.
+_UP_COLOR = "#8ca06f"
+_DOWN_COLOR = "#c43a39"
 
 
 def _extract_value(result: Any) -> float:

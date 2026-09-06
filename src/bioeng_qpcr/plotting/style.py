@@ -25,16 +25,16 @@ import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
-# A small palette inspired by Google's Material Design colours.  It is
-# colour-blind friendly enough for the common two/three-group qPCR case and
-# cycles automatically when more categories are needed.
+# Warm editorial palette adapted from the Claude Design Library.
+# Terracotta-forward, colour-blind friendly, and consistent with the
+# desktop application's "Warm Editorial Science" theme.
 _DEFAULT_PALETTE: list[str] = [
-    "#2196F3",  # blue
-    "#FF9800",  # orange
-    "#4CAF50",  # green
-    "#E91E63",  # pink
-    "#9C27B0",  # purple
-    "#FFC107",  # amber
+    "#d97757",  # terracotta (brand primary)
+    "#8ca06f",  # sage green
+    "#b05730",  # deep terracotta
+    "#9c87f5",  # muted violet
+    "#c4933a",  # warm ochre
+    "#5b8a99",  # slate teal
 ]
 
 

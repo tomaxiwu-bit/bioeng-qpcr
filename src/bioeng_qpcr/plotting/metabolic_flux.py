@@ -66,6 +66,6 @@ def plot_flux_distribution(
         f"Top {len(labels)} Fluxes "
         f"(objective={result.objective_value:.4f})"
     )
-    ax.axvline(0, color="#666666", linewidth=0.8)
+    ax.axvline(0, color="#6e6d68", linewidth=0.8)
     fig.tight_layout()
     return fig, ax

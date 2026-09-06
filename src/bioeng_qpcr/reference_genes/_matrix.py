@@ -16,6 +16,28 @@ from bioeng_qpcr.calculations.delta_cq import _mean_cq
 from bioeng_qpcr.domain.entities import Experiment
 
 
+def resolve_candidate_genes(
+    experiment: Experiment, candidate_targets: list[str] | None
+) -> list[str]:
+    """Resolve and deterministically order candidate reference genes.
+
+    A caller that supplies ``candidate_targets`` gets them back (usually
+    deduplicated).  Otherwise the experiment's designated reference
+    (housekeeping) assays are used, and a clear error is raised when none are
+    marked, so a stability analysis never silently runs on an empty set.
+    """
+    if candidate_targets is not None:
+        raw = list(candidate_targets)
+    else:
+        raw = list(experiment.reference_targets)
+        if not raw:
+            raise ValueError(
+                "No reference-gene candidates are designated. Mark assays "
+                "with is_reference=True or pass candidate_targets explicitly."
+            )
+    return sorted(dict.fromkeys(raw))
+
+
 def candidate_efficiencies(
     experiment: Experiment, candidates: list[str]
 ) -> dict[str, float]:

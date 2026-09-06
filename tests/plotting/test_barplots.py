@@ -111,14 +111,14 @@ class TestFoldChange:
 
     def test_bars_coloured_by_sign(self, results: list) -> None:
         _, ax = plot_fold_change(results)
-        # CTRL (1.0) and S1 (2.0) -> up/green; S2 (0.5) -> down/red.
+        # CTRL (1.0) and S1 (2.0) -> up/sage; S2 (0.5) -> down/warm-red.
         colors = [patch.get_facecolor() for patch in ax.patches]
-        # At least one red and at least one green bar face colour present.
+        # At least one warm-red and at least one sage bar face colour present.
         import matplotlib.colors as mcolors
 
         hex_colors = {mcolors.to_hex(c) for c in colors}
-        assert "#4caf50" in hex_colors  # up
-        assert "#e53935" in hex_colors  # down
+        assert "#8ca06f" in hex_colors  # up
+        assert "#c43a39" in hex_colors  # down
 
     def test_custom_style_applied(self, results: list) -> None:
         style = PlotStyle(grid=False, legend=False, font_size=10)

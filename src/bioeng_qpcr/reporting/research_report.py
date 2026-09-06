@@ -106,10 +106,10 @@ def build_research_report(
 <html lang="en"><head><meta charset="utf-8">
 <title>bioeng-qpcr report — {escape(experiment.name)}</title>
 <style>
-body{{font-family:system-ui,sans-serif;max-width:1100px;margin:2rem auto;padding:0 1rem;color:#1f2937}}
-h1,h2{{color:#123c69}} .notice{{padding:1rem;background:#fff3cd;border-left:5px solid #d39e00}}
-table{{border-collapse:collapse;width:100%;margin:1rem 0}} th,td{{border:1px solid #d1d5db;padding:.55rem;text-align:left}}
-th{{background:#eef4f8}} code{{word-break:break-all}} .pass{{color:#166534}}
+body{{font-family:system-ui,sans-serif;max-width:1100px;margin:2rem auto;padding:0 1rem;color:#1b1b19;background:#faf9f5}}
+h1,h2{{color:#b05730}} .notice{{padding:1rem;background:#f5e6c8;border-left:5px solid #c4933a}}
+table{{border-collapse:collapse;width:100%;margin:1rem 0}} th,td{{border:1px solid #d8d6cd;padding:.55rem;text-align:left}}
+th{{background:#f5f4ee}} code{{word-break:break-all}} .pass{{color:#4a5d34}}
 </style></head><body>
 <h1>bioeng-qpcr researcher report</h1>
 <p class="notice"><strong>Alpha research software.</strong> This report supports review; it is not clinical validation or full MIQE certification.</p>

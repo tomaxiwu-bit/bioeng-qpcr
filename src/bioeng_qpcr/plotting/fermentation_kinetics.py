@@ -77,7 +77,7 @@ def plot_fermentation_kinetics(
 
     # Substrate (right axis).
     ax2 = ax1.twinx()
-    color2 = "#dc2626"
+    color2 = "#8ca06f"
     ax2.scatter(
         time,
         substrate,

@@ -11,10 +11,15 @@ dist-research/
 build-fixed/
 dist-fixed/
 dist-release/
+release_archive/
+releases/
 *.egg-info/
 *.egg
 *.zip
 *.spec.bak
+
+# Not-for-commit prototypes / scratch
+desktop-ui-prototype.html
 
 # Virtual environments
 .venv/
