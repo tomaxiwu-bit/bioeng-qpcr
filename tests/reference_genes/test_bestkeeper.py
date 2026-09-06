@@ -86,7 +86,7 @@ class TestDescriptiveStatistics:
 
 
 class TestIndexAndCorrelation:
-    def test_index_is_arithmetic_mean_across_genes(self) -> None:
+    def test_index_is_geometric_mean_across_genes(self) -> None:
         exp = _make_experiment(
             {
                 "A": [20.0, 21.0, 22.0],
@@ -94,10 +94,10 @@ class TestIndexAndCorrelation:
             }
         )
         result = bestkeeper(exp)
-        # index[S1] = (20+30)/2 = 25, etc.
-        assert result.bestkeeper_index["S1"] == pytest.approx(25.0)
-        assert result.bestkeeper_index["S2"] == pytest.approx(26.0)
-        assert result.bestkeeper_index["S3"] == pytest.approx(27.0)
+        # index[S1] = sqrt(20*30), etc. (a geometric mean, not an average).
+        assert result.bestkeeper_index["S1"] == pytest.approx((20 * 30) ** 0.5)
+        assert result.bestkeeper_index["S2"] == pytest.approx((21 * 31) ** 0.5)
+        assert result.bestkeeper_index["S3"] == pytest.approx((22 * 32) ** 0.5)
 
     def test_perfectly_correlated_gene_has_r_one(self) -> None:
         exp = _make_experiment(
@@ -118,9 +118,11 @@ class TestIndexAndCorrelation:
             }
         )
         result = bestkeeper(exp)
-        # A has zero variance -> undefined correlation.
+        # A has zero variance -> undefined correlation. B tracks the geometric-
+        # mean index closely (though the index also contains the constant A, so
+        # the correlation is not exactly unity).
         assert result.pearson_r["A"] is None
-        assert result.pearson_r["B"] == pytest.approx(1.0)
+        assert result.pearson_r["B"] > 0.99
 
 
 # ---------------------------------------------------------------------------

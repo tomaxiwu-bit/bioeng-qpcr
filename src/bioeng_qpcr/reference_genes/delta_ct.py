@@ -15,8 +15,9 @@ For every pair of candidate genes (j, k), the delta-Ct between the two genes
 is computed for each sample and its standard deviation across samples is
 recorded.  A pair whose delta-Ct is nearly constant expresses the two genes at
 a constant ratio across conditions, which is the hallmark of stable reference
-genes.  The stability measure assigned to a gene is the geometric mean of the
-pairwise standard deviations involving that gene; lower is more stable.
+genes.  The stability measure assigned to a gene is the arithmetic mean
+(average) of the pairwise standard deviations involving that gene, exactly as
+in the original Silver et al. (2006) method; lower is more stable.
 
 As elsewhere in this module, candidate Cq values are converted to the
 efficiency-corrected log2 relative-quantity scale
@@ -28,7 +29,6 @@ scale used by geNorm and NormFinder.
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -50,7 +50,7 @@ class DeltaCtResult:
             Candidate genes ordered from most stable to least stable.
         stability_values:
             delta-Ct stability measure for each gene (lower = more stable):
-            the geometric mean, across all pairing partners, of the standard
+            the arithmetic mean, across all pairing partners, of the standard
             deviation of the log2 relative-quantity difference.
         pairwise_sd:
             Standard deviation of the log2 relative-quantity difference for
@@ -90,17 +90,16 @@ def _resolve_candidates(
     return sorted(dict.fromkeys(raw))
 
 
-def _geometric_mean(values: list[float]) -> float:
-    """Geometric mean of non-negative values.
+def _arithmetic_mean(values: list[float]) -> float:
+    """Arithmetic mean (average) of the given values.
 
-    A single zero factor drives the geometric mean to zero, which is the
-    behaviour Silver-style stability wants: a gene that is perfectly co-constant
-    with any partner is maximally stable, so its overall measure converges to 0.
+    The delta-Ct stability measure averages each gene's pairwise standard
+    deviations (Silver et al., 2006); an empty set is not expected but is
+    returned as 0.0 so the permutation logic stays total.
     """
-    values = [v for v in values if v >= 0]
-    if not values or any(v == 0.0 for v in values):
+    if not values:
         return 0.0
-    return math.exp(math.fsum(math.log(v) for v in values) / len(values))
+    return sum(values) / len(values)
 
 
 # ---------------------------------------------------------------------------
@@ -160,7 +159,7 @@ def delta_ct(
             partner_sd[gj].append(sd)
 
     stability_values = {
-        gene: _geometric_mean(partner_sd[gene]) for gene in candidates
+        gene: _arithmetic_mean(partner_sd[gene]) for gene in candidates
     }
     # Lower stability value = more stable.  Ties broken by gene name for
     # deterministic output.

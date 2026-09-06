@@ -49,8 +49,10 @@ def test_report_embeds_miqe2_checklist() -> None:
         for item in miqe["items"]
         if item["status"] == "reported"
     }
-    assert "analysis_reference_validation" in reported
+    assert "analysis_normalization" in reported
     assert "analysis_nc_frequency" in reported
+    # declaring reference genes is not a validation *method* -> not overstated
+    assert "analysis_reference_validation" not in reported
 
     html = report.html
     assert "MIQE 2.0 (2025) reporting checklist" in html

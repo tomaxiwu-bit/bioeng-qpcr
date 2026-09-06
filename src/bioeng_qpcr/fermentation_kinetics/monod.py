@@ -285,7 +285,14 @@ def fit_monod(
         upper / (1.0 + 1e-9),
     )
 
+    # A failed ODE integration for a trial parameter set is penalised so the
+    # optimiser moves away, but it is never *silently* discarded: the count is
+    # surfaced in the report (and a run where no trajectory could be integrated
+    # raises instead of reporting a nonsense fit).
+    ode_failures = 0
+
     def _residuals(log_p: np.ndarray) -> np.ndarray:
+        nonlocal ode_failures
         mu_max, ks, yxs = np.exp(log_p)
         try:
             x_pred, s_pred = solve_batch_fermentation(
@@ -298,6 +305,7 @@ def fit_monod(
                 ]
             )
         except (RuntimeError, ValueError):
+            ode_failures += 1
             return np.full(2 * time.size, 1e6)
 
     result = least_squares(
@@ -309,6 +317,11 @@ def fit_monod(
     )
     if not result.success:
         raise ValueError(f"Monod fitting failed to converge: {result.message}")
+    if ode_failures == result.nfev and ode_failures > 0:
+        raise ValueError(
+            "Monod fitting failed: every trial parameter set produced an "
+            "un-integrable ODE trajectory, so no meaningful fit is possible."
+        )
 
     log_parameters = result.x
     mu_max, ks, yxs = (float(v) for v in np.exp(log_parameters))
@@ -330,6 +343,12 @@ def fit_monod(
         * max(float(np.sum(substrate**2)), 1.0)
     )
     warnings: list[str] = []
+    if ode_failures > 0:
+        warnings.append(
+            f"{ode_failures} of {result.nfev} optimiser trial parameter sets "
+            "could not produce an integrable ODE trajectory and were penalised "
+            "rather than fitted."
+        )
     biomass_r_squared = (
         1.0 - biomass_ss_res / biomass_ss_tot
         if biomass_ss_tot > biomass_zero_variance_tolerance
@@ -392,7 +411,11 @@ def fit_monod(
                 ]
                 mu_max_ci, ks_ci, yxs_ci = intervals
         except (np.linalg.LinAlgError, ValueError):
-            pass
+            warnings.append(
+                "Confidence intervals could not be computed from the fit's "
+                "Jacobian (singular or non-finite covariance); intervals are "
+                "reported as None."
+            )
 
     residuals_tuple = tuple(
         float(r)

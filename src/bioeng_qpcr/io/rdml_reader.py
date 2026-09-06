@@ -492,29 +492,41 @@ def _parse_analysis_outputs(
     *,
     location: str,
     issues: list[CSVValidationIssue],
+    target_efficiency: float | None,
 ) -> tuple[float | None, float | None, float | None]:
-    """Return ``(n0, amp_eff, corrected_cq)`` from RDML 1.3 analysis outputs.
+    """Return ``(n0, amp_eff, corrected_cq)`` from RDML analysis outputs.
 
-    * ``N0``     -> template quantity (arbitrary fluorescence units).
+    * ``N0`` (RDML >= 1.3) or ``copiesNum`` (the equivalent RDML 1.2 field)
+      -> template quantity (arbitrary fluorescence units).
     * ``ampEff`` -> per-cycle amplification factor, converted to the library's
-      fractional convention (1.95 -> 0.95); ``2.0``/absent means 1.0.
+      fractional convention (1.95 -> 0.95).  When a well omits per-well
+      ``ampEff`` the target-level ``amplificationEfficiency`` (already resolved
+      to fractional *target_efficiency*) is used; efficiency is only left
+      unknown (``None``) when neither source reports one.
     * ``corrCq[]``-> baseline-corrected Cq for downstream quantification.
     * The corrected quantity ``corrN0 = (N0 * corrF) / corrP`` is applied to
       ``N0`` when either correction factor is present (both default to 1.0).
     """
     n0 = _analysis_number(data_el, "N0", location=location, issues=issues)
+    if n0 is None:
+        # RDML 1.2 stored the initial copy number as copiesNum.
+        n0 = _analysis_number(
+            data_el, "copiesNum", location=location, issues=issues
+        )
     corr_f = _analysis_number(data_el, "corrF", location=location, issues=issues)
     corr_p = _analysis_number(data_el, "corrP", location=location, issues=issues)
     if n0 is not None and (corr_f is not None or corr_p is not None):
         n0 = (n0 * (corr_f or 1.0)) / (corr_p or 1.0)
 
     amp_factor = _analysis_number(data_el, "ampEff", location=location, issues=issues)
-    amp_eff: float | None = None
     if amp_factor is not None:
-        if amp_factor <= 0:
-            amp_eff = None
-        else:
-            amp_eff = amp_factor - 1.0
+        amp_eff: float | None = (
+            None if amp_factor <= 0 else amp_factor - 1.0
+        )
+    else:
+        # Per-well ampEff not reported: fall back to the declared per-target
+        # efficiency rather than silently dropping the well's efficiency.
+        amp_eff = target_efficiency
 
     corrected_cq = _analysis_number(
         data_el, "corrCq", location=location, issues=issues
@@ -782,7 +794,10 @@ def read_rdml(
                     else ("determined" if cq is not None else "undetermined")
                 )
                 n0, amp_eff, corrected_cq = _parse_analysis_outputs(
-                    data_el, location=location, issues=issues
+                    data_el,
+                    location=location,
+                    issues=issues,
+                    target_efficiency=target_infos[target_ref]["efficiency"],
                 )
                 wells.append(
                     Well(

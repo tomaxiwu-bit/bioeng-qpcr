@@ -117,7 +117,7 @@ def _read_quantstudio(
                 f"QuantStudio 'Results' missing required column {required!r}"
             )
 
-    wells: list[Well] = []
+    rows: list[tuple[str, str, str, float | None, str]] = []
     n_skipped = 0
     for row in grid[header_row + 1 :]:
         if not any(_clean(cell) for cell in row):
@@ -148,19 +148,29 @@ def _read_quantstudio(
             if task == "ntc"
             else ("undetermined" if cq is None else "determined")
         )
-        wells.append(
-            Well(
-                position=position,
-                sample_name=sample_name,
-                target_name=target_name,
-                cq=cq,
-                replicate_type=ReplicateType.SINGLE,
-                cq_status=cq_status,
-            )
-        )
+        rows.append((position, sample_name, target_name, cq, cq_status))
 
-    if not wells:
+    if not rows:
         raise ValueError("QuantStudio export contains no usable result rows")
+
+    # Multiplex wells put several targets under one position; the domain model
+    # requires unique positions, so suffix repeats like the CFX/RDML readers.
+    position_counts = Counter(r[0] for r in rows)
+    wells = [
+        Well(
+            position=(
+                position
+                if position_counts[position] == 1
+                else f"{position}:{target_name}"
+            ),
+            sample_name=sample_name,
+            target_name=target_name,
+            cq=cq,
+            replicate_type=ReplicateType.SINGLE,
+            cq_status=cq_status,
+        )
+        for position, sample_name, target_name, cq, cq_status in rows
+    ]
 
     reference = set(reference_targets or [])
     return Experiment(
@@ -212,7 +222,7 @@ def _read_cfx(workbook: Any, *, reference_targets: list[str]) -> Experiment:
             if key:
                 run_info[key] = value
 
-    rows: list[tuple[str, str, str, float | None, str, float | None]] = []
+    rows: list[tuple[str, str, str, float | None, str, float | None, str]] = []
     n_skipped = 0
     for row in grid[header_row + 1 :]:
         if not any(_clean(cell) for cell in row):
@@ -228,13 +238,14 @@ def _read_cfx(workbook: Any, *, reference_targets: list[str]) -> Experiment:
         ).casefold()
         cq = _to_float(row[columns["cq"]] if "cq" in columns else None)
         sq = _to_float(row[columns["sq"]] if "sq" in columns else None)
+        fluor = _clean(row[columns["fluor"]] if "fluor" in columns else "")
         is_ntc = content in {"neg ctrl", "neg", "ntc", "no template", "no_template"}
         cq_status = (
             "no_template"
             if is_ntc
             else ("undetermined" if cq is None else "determined")
         )
-        rows.append((position, sample_name, target_name, cq, cq_status, sq))
+        rows.append((position, sample_name, target_name, cq, cq_status, sq, fluor))
 
     if not rows:
         raise ValueError("CFX export contains no usable result rows")
@@ -258,10 +269,14 @@ def _read_cfx(workbook: Any, *, reference_targets: list[str]) -> Experiment:
             cq_status=cq_status,
             n0=sq,
         )
-        for position, sample_name, target_name, cq, cq_status, sq in rows
+        for position, sample_name, target_name, cq, cq_status, sq, _fluor in rows
     ]
 
     reference = set(reference_targets or [])
+    dye_by_target: dict[str, str] = {}
+    for _pos, _sample, target, _cq, _cq_status, _sq, fluor in rows:
+        if fluor and target not in dye_by_target:
+            dye_by_target[target] = fluor
     return Experiment(
         name="cfx",
         wells=wells,
@@ -269,7 +284,11 @@ def _read_cfx(workbook: Any, *, reference_targets: list[str]) -> Experiment:
             name: Sample(name=name) for name in sorted({w.sample_name for w in wells})
         },
         assays={
-            target: Assay(name=target, is_reference=target in reference)
+            target: Assay(
+                name=target,
+                is_reference=target in reference,
+                dye_chemistry=dye_by_target.get(target),
+            )
             for target in sorted({w.target_name for w in wells})
         },
         metadata={
@@ -307,20 +326,42 @@ def _is_lc480_text(first_line: str) -> bool:
     )
 
 
+def _read_lc480_dataframe(path: Path) -> pd.DataFrame:
+    """Read LC480 tab-export, tolerating non-UTF-8 encodings."""
+    for encoding in ("utf-8", "latin-1"):
+        try:
+            return pd.read_csv(path, sep="\t", encoding=encoding)
+        except (UnicodeDecodeError, UnicodeError):
+            continue
+    raise ValueError(f"{path.name}: could not decode as UTF-8 or latin-1")
+
+
 def _read_lc480(path: Path) -> Experiment:
-    df = pd.read_csv(path, sep="\t")
+    df = _read_lc480_dataframe(path)
     df.columns = [str(c).strip() for c in df.columns]
     lowered = {c.casefold(): c for c in df.columns}
     pos_col = lowered.get("sample position")
     cycle_col = lowered.get("cycle number")
-    fluor_col = next(
-        (c for k, c in lowered.items() if "fluorescence data" in k), None
-    )
-    if pos_col is None or cycle_col is None or fluor_col is None:
+    fluor_cols = [
+        c for k, c in lowered.items() if "fluorescence data" in k
+    ]
+    if pos_col is None or cycle_col is None:
         raise ValueError(
             "Not a LightCycler 480 raw-fluorescence export: missing "
-            "'Sample position', 'Cycle number' or 'Fluorescence data' columns"
+            "'Sample position' or 'Cycle number' columns"
         )
+    if not fluor_cols:
+        raise ValueError(
+            "Not a LightCycler 480 raw-fluorescence export: no "
+            "'Fluorescence data' column found"
+        )
+    if len(fluor_cols) > 1:
+        raise ValueError(
+            "multi-channel LightCycler 480 text export detected with "
+            f"{len(fluor_cols)} fluorescence columns; only single-dye "
+            "exports are supported - split channels or export as RDML"
+        )
+    fluor_col = fluor_cols[0]
 
     name_col = lowered.get("sample name")
     wells: dict[str, str] = {}

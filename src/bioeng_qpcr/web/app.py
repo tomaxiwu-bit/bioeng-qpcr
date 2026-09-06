@@ -37,7 +37,12 @@ from typing import Any
 
 from flask import Flask, jsonify, request
 
-from bioeng_qpcr.io import read_amplification_csv, read_rdml, read_tidy_csv
+from bioeng_qpcr.io import (
+    NotAmplificationFile,
+    read_amplification_csv,
+    read_rdml,
+    read_tidy_csv,
+)
 from bioeng_qpcr.validation import ValidationEngine
 
 __all__ = ["create_app"]
@@ -120,8 +125,10 @@ def _load_curve_experiment(
 ):
     """Load an experiment that carries raw amplification traces.
 
-    A long-format trace CSV is preferred; on failure (or for RDML) the path
-    is routed through :func:`_load_experiment`.
+    A long-format trace CSV is preferred; files that structurally are not
+    trace CSVs (and missing files) route through :func:`_load_experiment`.
+    A file that *looks* like a trace CSV but is malformed raises instead of
+    being silently reinterpreted.
     """
     suffix = Path(path).suffix.lower()
     if suffix not in _RDML_SUFFIXES:
@@ -129,7 +136,7 @@ def _load_curve_experiment(
             return read_amplification_csv(
                 path, reference_targets=reference_targets
             )
-        except (ValueError, FileNotFoundError):
+        except (NotAmplificationFile, FileNotFoundError):
             pass
     return _load_experiment(path, reference_targets)
 

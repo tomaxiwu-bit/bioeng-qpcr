@@ -260,6 +260,33 @@ class TestTraceFitting:
         # k = 0.7 in the synthetic data.
         assert result.slope == pytest.approx(0.7, abs=0.1)
 
+    def test_efficiency_is_logistic_growth_factor(self) -> None:
+        """The logistic efficiency factor is exp(k)-1 on the baseline-corrected
+        amplitude, not a baseline-diluted 'relative growth at the inflection'."""
+        cycles, fluorescence = self._trace(L=100.0, k=0.7, x0=25.0, C=5.0)
+        result = fit_efficiency_from_trace(cycles, fluorescence)
+        k = result.slope
+        assert result.efficiency == pytest.approx(np.exp(k) - 1.0, rel=1e-6)
+
+    def test_efficiency_is_invariant_to_baseline_offset(self) -> None:
+        """A constant baseline C shifts the whole curve but not the per-cycle
+        growth rate; the efficiency estimate must not change."""
+        low_c = fit_efficiency_from_trace(
+            *self._trace(L=100.0, k=0.7, x0=25.0, C=2.0)
+        ).efficiency
+        high_c = fit_efficiency_from_trace(
+            *self._trace(L=100.0, k=0.7, x0=25.0, C=40.0)
+        ).efficiency
+        assert low_c == pytest.approx(high_c, rel=0.05)
+
+    @staticmethod
+    def _trace(
+        L: float, k: float, x0: float, C: float
+    ) -> tuple[np.ndarray, np.ndarray]:
+        cycles = np.arange(1, 46, dtype=float)
+        fluorescence = L / (1.0 + np.exp(-k * (cycles - x0))) + C
+        return cycles, fluorescence
+
 
 # ---------------------------------------------------------------------------
 # Trace fitting: error cases

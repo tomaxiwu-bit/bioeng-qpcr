@@ -34,6 +34,7 @@ from bioeng_qpcr.calculations import (
     normalized_quantity_all,
     pfaffl_batch,
 )
+from bioeng_qpcr.calculations.efficiency import _efficiency_from_slope
 from bioeng_qpcr.domain.entities import Experiment
 from bioeng_qpcr.enzyme_kinetics import (
     classify_inhibition,
@@ -146,25 +147,25 @@ def _figure_to_base64(fig: Figure) -> dict[str, Any]:
 def _efficiency_from_experiment(experiment: Experiment, target: str) -> dict[str, Any]:
     """Derive amplification efficiency for *target* from the experiment.
 
-    If the assay carries a standard-curve slope the efficiency is computed
-    directly as ``10**(-1/slope) - 1`` (the same formula used internally by
-    :func:`fit_efficiency_from_standard_curve`).  A pre-recorded efficiency
-    is returned verbatim.  Otherwise a clear error is raised because the
-    Level A tidy CSV format does not carry the concentration column required
-    for an in-place standard-curve fit.
+    If the assay carries a standard-curve slope the efficiency is computed via
+    the library's single slope-to-efficiency conversion
+    (:func:`bioeng_qpcr.calculations.efficiency._efficiency_from_slope`), so
+    the formula and its validation live in exactly one place.  A pre-recorded
+    efficiency is returned verbatim.  Otherwise a clear error is raised
+    because the Level A tidy CSV format does not carry the concentration
+    column required for an in-place standard-curve fit.
     """
     assay = experiment.assays.get(target)
     if assay is None:
         raise ValueError(f"Target '{target}' is not present in the experiment.")
 
     if assay.slope is not None:
-        slope = float(assay.slope)
-        efficiency = 10.0 ** (-1.0 / slope) - 1.0
+        efficiency = _efficiency_from_slope(float(assay.slope))
         return {
             "target_name": target,
             "efficiency": efficiency,
             "r_squared": assay.r2,
-            "slope": slope,
+            "slope": float(assay.slope),
             "intercept": None,
             "n_points": None,
             "source": "assay_slope_metadata",

@@ -1,9 +1,8 @@
 """Tests for the delta-Ct reference-gene stability analysis.
 
 Uses synthetic experiments to verify the linkage with the established
-efficiency-corrected quantity scale and the geometric-mean of pairwise
-standard deviations that distinguishes the method from geNorm's arithmetic
-mean.
+efficiency-corrected quantity scale and the arithmetic-mean of pairwise
+standard deviations specified by Silver et al. (2006).
 """
 
 from __future__ import annotations
@@ -91,7 +90,7 @@ class TestDeltaCtRanking:
         assert result.stability_values["ACTB"] == pytest.approx(0.0)
         assert result.stability_values["GAPDH"] == pytest.approx(0.0)
 
-    def test_ranking_matches_pairwise_geomean(self) -> None:
+    def test_ranking_matches_pairwise_arithmetic_mean(self) -> None:
         exp = _make_experiment(
             {
                 "ACTB": [20.0, 20.0, 20.0, 20.0],
@@ -100,10 +99,11 @@ class TestDeltaCtRanking:
             }
         )
         result = delta_ct(exp)
-        # GAPDH's stability = geomean of SD(GAPDH,ACTB) and SD(GAPDH,TUBULIN).
+        # GAPDH's stability = arithmetic mean of SD(GAPDH,ACTB) and
+        # SD(GAPDH,TUBULIN) (the Silver et al. definition, not a geometric mean).
         sd_actb = result.pairwise_sd[("ACTB", "GAPDH")]
         sd_tub = result.pairwise_sd[("GAPDH", "TUBULIN")]
-        expected = math.exp((math.log(sd_actb) + math.log(sd_tub)) / 2)
+        expected = (sd_actb + sd_tub) / 2
         assert result.stability_values["GAPDH"] == pytest.approx(expected)
 
     def test_pairwise_sd_uses_population_estimator(self) -> None:

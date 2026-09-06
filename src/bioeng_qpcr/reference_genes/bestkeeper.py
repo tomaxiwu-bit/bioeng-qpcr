@@ -16,7 +16,7 @@ BestKeeper works on raw crossing points (Cq) and does not apply amplification-
 efficiency correction.  For every candidate gene the descriptive statistics of
 its Cq across samples are computed (arithmetic mean, standard deviation and
 coefficient of variation).  A BestKeeper index is formed per sample as the
-arithmetic mean of the Cq values across all candidate genes, and each gene is
+geometric mean of the Cq values across all candidate genes, and each gene is
 then correlated (Pearson) with that index.
 
 A gene whose Cq is very constant across samples (low standard deviation) and
@@ -54,7 +54,7 @@ class BestKeeperResult:
         ct_cv:
             Coefficient of variation of Cq (percent) of each gene.
         bestkeeper_index:
-            BestKeeper index for each sample: the arithmetic mean of Cq across
+            BestKeeper index for each sample: the geometric mean of Cq across
             the candidate genes.
         pearson_r:
             Pearson correlation of each gene's Cq with the BestKeeper index.
@@ -188,8 +188,16 @@ def bestkeeper(
         ct_sd[gene] = sd
         ct_cv[gene] = sd / mean * 100.0 if mean != 0 else 0.0
 
-    # BestKeeper index per sample: arithmetic mean of Cq across candidates.
-    index_per_sample = np.mean(matrix, axis=1)
+    # BestKeeper index per sample: geometric mean of Cq across candidates.
+    # A geometric mean is only defined for strictly positive values, and any
+    # non-positive crossing point is non-physical, so fail rather than silently
+    # produce a nonsensical index.
+    if np.any(matrix <= 0.0):
+        raise ValueError(
+            "BestKeeper indexes require strictly positive Cq values, but the "
+            "crossing-point matrix contains non-positive entries."
+        )
+    index_per_sample = np.exp(np.mean(np.log(matrix), axis=1))
     bestkeeper_index = dict(zip(sample_names, index_per_sample, strict=True))
 
     pearson_r: dict[str, float | None] = {}

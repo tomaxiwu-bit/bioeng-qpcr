@@ -48,6 +48,30 @@ def _flat_curve(cycles: np.ndarray, value: float = 2.0) -> np.ndarray:
     return np.full(cycles.size, value, dtype=float)
 
 
+def _logistic_factor_curve(
+    cycles: np.ndarray,
+    *,
+    baseline: float = 2.0,
+    plateau: float = 8.0,
+    eff: float = 1.0,
+    x_onset: float = 5.0,
+) -> np.ndarray:
+    """Smooth, saturating curve whose early rise carries a known per-cycle
+    amplification factor ``1 + eff``.
+
+    The baseline-corrected signal is ``raw / (1 + raw / L)`` with
+    ``raw = 0.05L · (1 + eff)^(c - x_onset)``.  Far below the plateau this
+    approximates a pure exponential that doubles/steps per cycle according to
+    *eff*, then saturates smoothly toward *plateau*.  This makes the true
+    log-linear growth rate a *known* oracle value for end-to-end testing.
+    """
+    L = plateau - baseline
+    seed = 0.05 * L
+    raw = seed * (1.0 + eff) ** (cycles - x_onset)
+    d = raw / (1.0 + raw / L)
+    return baseline + d
+
+
 # ---------------------------------------------------------------------------
 # Baseline estimation & correction
 # ---------------------------------------------------------------------------
@@ -183,6 +207,75 @@ class TestFitAmplificationCurve:
         result = fit_amplification_curve(cycles, fluo, position="D01")
         assert result.status == "degraded"
         assert any("efficiency" in w for w in result.warnings) or result.eff is None
+
+
+class TestEfficiencyWindowgating:
+    def test_poor_log_linear_fit_is_gated(self):
+        # Five points fall inside the window, but a spike in the middle makes
+        # log(dR) ~ nonlinear in cycle -> the R² gate must reject the estimate.
+        cycles = np.arange(20.0, 26.0)
+        plateau = 10.0
+        dR = np.array([0.6, 0.7, 3.0, 0.8, 0.9, 4.5])
+        eff, slope, n = _exponential_window_efficiency(cycles, dR, plateau)
+        assert n == 0  # rejected on the R² gate, not on window size
+        assert eff is None
+        assert slope is None
+
+    def test_good_log_linear_fit_is_kept(self):
+        # A clean geometric series is exactly log-linear -> kept, eff recovered.
+        cycles = np.arange(10.0, 16.0)
+        eff_true = 0.90
+        dR = 0.03 * (1.0 + eff_true) ** (cycles - cycles[0])
+        eff, slope, n = _exponential_window_efficiency(cycles, dR, plateau=1.0)
+        assert n >= 3
+        assert eff == pytest.approx(eff_true, abs=0.05)
+
+
+class TestEndToEndOracle:
+    def test_recovers_known_efficiency_and_orders_curves(self):
+        # Two oracle curves with a known per-cycle growth factor; the pipeline
+        # must recover plausible efficiencies and preserve the ordering.
+        cycles = _cycles(40)
+        results = {}
+        for label, true_eff in (("low", 0.60), ("high", 0.90)):
+            fluo = _logistic_factor_curve(cycles, eff=true_eff)
+            result = fit_amplification_curve(cycles, fluo, position=label)
+            assert result.status != "failed"
+            assert result.eff is not None
+            # Plausible and well inside the (S9) _EFF_LOW/_EFF_HIGH bounds.
+            assert 0.3 < result.eff < 2.5
+            results[label] = result.eff
+
+        assert results["low"] < results["high"]
+
+    def test_oracle_end_to_end_via_experiment_aggregation(self):
+        from bioeng_qpcr.domain.entities import RawTrace
+        from bioeng_qpcr.domain.enums import ReplicateType
+
+        cycles = _cycles(40)
+        wells = [
+            Well(
+                position="A01", sample_name="S1", target_name="IL6", cq=20.0,
+                replicate_type=ReplicateType.SINGLE,
+            )
+        ]
+        samples = {"S1": Sample(name="S1", replicate_type=ReplicateType.SINGLE)}
+        assays = {"IL6": Assay(name="IL6", efficiency=None)}
+        traces = {
+            "A01": RawTrace(
+                position="A01",
+                cycles=cycles,
+                fluorescence=_logistic_factor_curve(cycles, eff=0.90),
+            )
+        }
+        experiment = Experiment(
+            name="oracle", wells=wells, samples=samples, assays=assays, traces=traces
+        )
+        result = analyze_amplification_curves(experiment)
+        summary = result.per_assay["IL6"]
+        assert summary.n_wells == 1
+        assert summary.median is not None
+        assert 0.3 < summary.median < 2.5
 
 
 # ---------------------------------------------------------------------------

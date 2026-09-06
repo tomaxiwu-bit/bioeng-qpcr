@@ -10,11 +10,11 @@ expressed reference (housekeeping) genes from qPCR data:
 * **Variance stability score** -- the earlier descriptive within/between-group
   score, retained under an explicit name for compatibility.
 * **delta-Ct** (:mod:`~bioeng_qpcr.reference_genes.delta_ct`) -- stability
-  from the geometric mean of pairwise delta-Ct standard deviations
+  from the arithmetic mean of pairwise delta-Ct standard deviations
   (Silver et al., 2006).
 * **BestKeeper** (:mod:`~bioeng_qpcr.reference_genes.bestkeeper`) -- raw-Cq
   descriptive statistics, Cq consistency flag, and correlation with the
-  BestKeeper index (Pfaffl et al., 2004).
+  geometric-mean BestKeeper index (Pfaffl et al., 2004).
 * **Consensus** (:mod:`~bioeng_qpcr.reference_genes.consensus`) -- rank
   aggregation of the selected stability methods into a single recommendation.
 

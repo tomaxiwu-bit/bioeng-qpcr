@@ -602,6 +602,39 @@ class TestRdml13:
 
         assert experiment.wells[0].amp_eff == pytest.approx(0.90)
 
+    def test_amp_eff_absent_falls_back_to_target_efficiency(self, tmp_path):
+        """When a well omits ``ampEff`` its efficiency comes from the declared
+        target ``amplificationEfficiency`` instead of being dropped."""
+        targets = (
+            '<target id="T1"><type>toi</type>'
+            "<amplificationEfficiency>1.90</amplificationEfficiency>"
+            '<dyeId id="SYBR"/></target>'
+            '<target id="T2"><type>toi</type><dyeId id="SYBR"/></target>'
+        )
+        react = (
+            # No <ampEff> in the well's analysis outputs.
+            '<react id="1"><sample id="S1"/><data><tar id="T1"/><cq>20.0</cq>'
+            "<N0>5.0</N0></data></react>"
+        )
+
+        experiment = read_rdml(
+            _write(tmp_path, _rdml_doc(react, targets=targets))
+        )
+
+        assert experiment.wells[0].amp_eff == pytest.approx(0.90)
+
+    def test_amp_eff_absent_without_target_eff_is_unknown(self, tmp_path):
+        """A well with neither per-well ampEff nor a target efficiency leaves
+        the well's efficiency unknown (None) rather than discarding data."""
+        react = (
+            '<react id="1"><sample id="S1"/><data><tar id="T1"/><cq>20.0</cq>'
+            "</data></react>"
+        )
+
+        experiment = read_rdml(_write(tmp_path, _rdml_doc(react)))
+
+        assert experiment.wells[0].amp_eff is None
+
     def test_dye_chemistry_resolved_from_dye_master(self, tmp_path):
         doc = (
             '<?xml version="1.0" encoding="UTF-8"?>'

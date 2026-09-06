@@ -726,7 +726,7 @@ def miqe(
 ) -> None:
     """Emit a MIQE 2.0 (2025) reporting-completeness checklist.
 
-    The alpha report is not a certification: it records which of the 46
+    The alpha report is not a certification: it records which of the
     MIQE 2.0 items are attested by the data (``reported``), still expected
     yet absent (``missing``), or not applicable (``na``).
     """
@@ -887,7 +887,7 @@ def _load_curve_experiment(
     through :func:`_load_experiment`, which maps RDML ``<adp>`` data onto
     ``Experiment.traces``.
     """
-    from bioeng_qpcr.io import read_amplification_csv
+    from bioeng_qpcr.io import NotAmplificationFile, read_amplification_csv
 
     suffix = Path(csv_path).suffix.lower()
     if suffix not in _RDML_SUFFIXES:
@@ -895,7 +895,7 @@ def _load_curve_experiment(
             return read_amplification_csv(
                 csv_path, reference_targets=reference_targets
             )
-        except (ValueError, FileNotFoundError):
+        except (NotAmplificationFile, FileNotFoundError):
             pass
     return _load_experiment(csv_path, reference_targets)
 

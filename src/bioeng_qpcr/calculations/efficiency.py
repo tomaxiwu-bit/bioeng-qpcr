@@ -242,13 +242,19 @@ def fit_logistic_trace_shape(
     1. Fit the 4PL model ``f(x) = L / (1 + exp(-k*(x-x0))) + C`` to the raw
        fluorescence data using :func:`scipy.optimize.curve_fit`.
     2. Extract the Cq at the inflection point (``x0``).
-    3. Estimate efficiency from the curve shape using the relative growth
-       rate at the inflection point::
+    3. Estimate efficiency from the logistic growth factor on the
+       *baseline-corrected* amplitude.  For a fitted 4PL the signal about the
+       baseline is ``g(x) = L / (1 + exp(-k*(x-x0)))``, which rises
+       exponentially like ``L·exp(k·(x-x0))`` early on, so ``log g`` is linear
+       in cycle with slope ``k`` and the per-cycle amplification factor is
+       ``exp(k)``::
 
-           max_derivative     = |L| * |k| / 4
-           value_at_inflection = |L| / 2 + |C|
-           relative_growth     = max_derivative / value_at_inflection
-           efficiency          = exp(relative_growth) - 1
+           efficiency = exp(k) - 1
+
+       The baseline offset ``C`` must not appear in the factor: it contributes
+       a constant fluorescence that has no bearing on the per-cycle growth
+       rate, and folding it into the denominator (as a "relative growth at the
+       inflection") makes the estimate shrink with baseline height.
 
     Parameters
         cycles:
@@ -303,14 +309,12 @@ def fit_logistic_trace_shape(
     # Cq at the inflection point.
     cq = x0
 
-    # Estimate efficiency from the relative growth rate at the inflection.
-    max_derivative = abs(L) * abs(k) / 4.0
-    value_at_inflection = abs(L) / 2.0 + abs(C)
-    if value_at_inflection > 0:
-        relative_growth = max_derivative / value_at_inflection
-    else:
-        relative_growth = abs(k) / 2.0
-    efficiency = float(np.exp(relative_growth) - 1.0)
+    # Logistic efficiency factor from the baseline-corrected log-linear rate.
+    # The baseline offset C is deliberately excluded: it is a constant adding
+    # nothing to the per-cycle growth rate, and including it would bias the
+    # factor down by the ratio 2C/L.  With unit cycle spacing the per-cycle
+    # amplification factor is exp(k), so the fractional efficiency is exp(k)-1.
+    efficiency = float(np.exp(k) - 1.0)
 
     # R² of the 4PL fit.
     predicted = _four_param_logistic(cycles, *popt)

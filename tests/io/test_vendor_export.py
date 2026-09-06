@@ -93,6 +93,37 @@ class TestQuantStudio:
         with pytest.raises(ValueError, match="Results"):
             read_vendor_export(path)
 
+    def test_multiplex_wells_uniquified(self, tmp_path):
+        path = _save_workbook(
+            tmp_path,
+            "qs_multiplex.xlsx",
+            {
+                "Results": [
+                    [
+                        "Well",
+                        "Well Position",
+                        "Sample Name",
+                        "Target Name",
+                        "Task",
+                        "CT",
+                    ],
+                    [1, "A1", "S1", "GAPDH", "UNKNOWN", "18.5"],
+                    [2, "A1", "S1", "IL6", "UNKNOWN", "21.2"],
+                    [3, "A2", "S2", "GAPDH", "UNKNOWN", "19.0"],
+                ],
+            },
+        )
+
+        experiment = read_vendor_export(path)
+        positions = {w.position for w in experiment.wells}
+        assert len(positions) == len(experiment.wells)  # no duplicate positions
+        by_target = {
+            w.target_name: w for w in experiment.wells if w.sample_name == "S1"
+        }
+        assert by_target["GAPDH"].position == "A01:GAPDH"
+        assert by_target["IL6"].position == "A01:IL6"
+        assert by_target["IL6"].cq == pytest.approx(21.2)
+
 
 class TestBioRadCfx:
     def _wb(self, tmp_path: Path) -> Path:
@@ -150,6 +181,12 @@ class TestBioRadCfx:
         with pytest.raises(ValueError, match="unrecognised Excel vendor"):
             read_vendor_export(path)
 
+    def test_fluor_captured_as_dye_chemistry(self, tmp_path):
+        experiment = read_vendor_export(self._wb(tmp_path))
+
+        assert experiment.assays["GAPDH"].dye_chemistry == "SYBR"
+        assert experiment.assays["IL6"].dye_chemistry == "FAM"
+
 
 class TestLightCycler480:
     def _txt(self, tmp_path: Path) -> Path:
@@ -180,6 +217,30 @@ class TestLightCycler480:
         experiment = read_vendor_export(self._txt(tmp_path))
 
         assert list(experiment.traces["A02"].fluorescence) == [1.2, 1.6]
+
+    def test_multi_channel_export_rejected(self, tmp_path):
+        path = tmp_path / "lc480_dualdye.txt"
+        path.write_text(
+            "Sample position\tCycle number\tFluorescence data\tFluorescence data 2\n"
+            "A01\t1\t0.5\t1.8\n"
+            "A01\t2\t0.9\t2.1\n",
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ValueError, match="multi-channel"):
+            read_vendor_export(path)
+
+    def test_latin1_encoding_tolerated(self, tmp_path):
+        path = tmp_path / "lc480_latin1.txt"
+        content = (
+            "Sample position\tSample name\tCycle number\tFluorescence data\n"
+            "A01\tM\xe9ment\t1\t0.5\n"
+            "A01\tM\xe9ment\t2\t0.9\n"
+        )
+        path.write_bytes(content.encode("latin-1"))
+
+        experiment = read_vendor_export(path)
+        assert experiment.traces["A01"].n_cycles == 2
 
 
 class TestDispatcher:

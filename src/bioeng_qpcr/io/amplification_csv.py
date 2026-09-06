@@ -27,9 +27,19 @@ import pandas as pd
 
 from bioeng_qpcr.domain.entities import Assay, Experiment, RawTrace, Sample, Well
 
-__all__ = ["read_amplification_csv"]
+__all__ = ["NotAmplificationFile", "read_amplification_csv"]
 
 _REQUIRED = frozenset({"position", "cycle", "fluorescence"})
+
+
+class NotAmplificationFile(ValueError):
+    """Raised when a file is structurally not an amplification-trace CSV.
+
+    Distinct from plain :class:`ValueError`, which signals a file that looks
+    like an amplification CSV but is malformed.  Callers use this distinction
+    to decide whether a tidy-CSV fallback is legitimate (no required columns
+    present) or would silently reinterpret broken data (raise instead).
+    """
 
 
 def read_amplification_csv(
@@ -50,18 +60,22 @@ def read_amplification_csv(
         sample/target metadata is present), assays, and raw traces populated.
 
     Raises
+        NotAmplificationFile:
+            When the file has no trace columns (or is empty) and is therefore
+            not an amplification CSV.
         ValueError:
-            On missing required columns, non-finite values, or an empty file.
+            On a structurally amplification-like file that is malformed
+            (non-finite values, non-increasing cycles, bad ``cq``).
     """
     df = pd.read_csv(csv_path)
     missing = _REQUIRED - set(df.columns)
     if missing:
-        raise ValueError(
+        raise NotAmplificationFile(
             f"Amplification CSV missing required column(s): "
             f"{', '.join(sorted(missing))}"
         )
     if df.empty:
-        raise ValueError("Amplification CSV is empty.")
+        raise NotAmplificationFile("Amplification CSV is empty.")
 
     positions = [str(p).strip() for p in df["position"]]
     cycles = np.asarray(df["cycle"], dtype=float)

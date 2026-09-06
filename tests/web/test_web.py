@@ -172,3 +172,23 @@ class TestCurves:
     def test_bad_baseline_method(self, client):
         body = _upload(client, "/api/curves", _CURVES_CSV, baseline_method="bogus")
         assert body["ok"] is False
+
+    def test_malformed_trace_csv_not_silently_downgraded(self, client, tmp_path):
+        # has required trace columns but broken cycle structure -> must fail
+        # loudly, not be reinterpreted as a tidy table
+        bad = tmp_path / "bad_traces.csv"
+        bad.write_text(
+            "position,cycle,fluorescence,target_name\n"
+            "A01,1,0.5,GAPDH\n"
+            "A01,1,0.9,GAPDH\n",
+            encoding="utf-8",
+        )
+        with bad.open("rb") as fh:
+            response = client.post(
+                "/api/curves",
+                data={"file": (fh, "bad_traces.csv")},
+                content_type="multipart/form-data",
+            )
+        body = response.get_json()
+        assert body["ok"] is False
+        assert "cycle" in body["error"]

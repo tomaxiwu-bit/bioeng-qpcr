@@ -3,22 +3,29 @@
 MIQE (Minimum Information for Publication of Quantitative Real-Time PCR
 Experiments) was revised in 2025 ("MIQE 2.0", Bustin et al., Clinical
 Chemistry) from the original 2009 checklist.  MIQE 2.0 organises the
-reporting obligations into five categories backed by a ~46-item Table 1.
+reporting obligations into five categories backed by a Table 1 of items; the
+authoritative list is mirrored here as :data:`MIQE2_FIELDS`.
 
 This module does **not** re-implement bioeng-qpcr's executable validation
 rules (see :mod:`bioeng_qpcr.validation.rules`).  Instead it provides a
-*reporting completeness* checklist: for each of the 46 MIQE 2.0 items it
-tells you whether the information is present to be reported, filling in the
-fields that are attestable from an :class:`Experiment` and leaving the rest
-for you to answer manually:
+*reporting completeness* checklist: for each item it tells you whether the
+information required by that item is present to be reported, filling in the
+fields that are genuinely attestable from an :class:`Experiment` and leaving
+the rest for you to answer manually:
 
-* ``reported`` -- the item is either auto-derived from the experiment data
-  or was answered ``True`` explicitly.
+* ``reported`` -- the specific evidence the item demands is present in the
+  data (or was answered ``True`` explicitly).
 * ``missing`` -- the item is expected (essential) but has not been provided.
-* ``na`` -- the item is not applicable (non-essential and/labelled N/A).
+* ``na`` -- the item is not applicable (non-essential and/or labelled N/A).
 
 The result is emitted as a structured :class:`Miqe2Report` (dict / JSON /
 text) suitable for inclusion in a submission packet.
+
+An item is auto-marked ``reported`` only when the evidence the item actually
+requires is present.  In particular, incomplete proxies such as "there are
+Cq values" do **not** satisfy items that demand a method, a species/accession,
+a sample source, or a raw-data submission -- those stay ``missing`` rather
+than being overstated.
 """
 
 from __future__ import annotations
@@ -54,14 +61,13 @@ MIQE2_CATEGORIES: list[tuple[str, str]] = [
 def _derive_field(field_id: str, experiment: Experiment) -> tuple[str, str] | None:
     """Auto-fill *field_id* from an :class:`Experiment`.
 
-    Returns ``(status, evidence)`` when the information is attestable from
-    the data, else ``None`` (the field stays unanswered).
+    Returns ``(status, evidence)`` when the evidence the item genuinely
+    demands is present in the data, else ``None`` (the field stays unanswered
+    rather than being overstated).
     """
     # Reagent Preparation ---------------------------------------------------
-    if field_id == "reagent_gene_symbols":
-        if experiment.assays:
-            names = sorted(experiment.assays)
-            return "reported", f"targets: {', '.join(names)}"
+    # reagent_gene_symbols requires species + accession, which are never
+    # captured, so it can never be auto-reported.
     if field_id == "reagent_sequences":
         with_seq = [
             a.name
@@ -70,13 +76,9 @@ def _derive_field(field_id: str, experiment: Experiment) -> tuple[str, str] | No
         ]
         if with_seq:
             return "reported", f"sequences for: {', '.join(sorted(with_seq))}"
-    # Sample Preparation -----------------------------------------------------
-    if field_id == "sample_types_quantity":
-        if experiment.wells:
-            return "reported", (
-                f"{len(experiment.samples)} samples, "
-                f"{len(experiment.wells)} wells"
-            )
+    # Sample Preparation ----------------------------------------------------
+    # sample_types_quantity requires the sample *source*, which is not
+    # captured, so well/sample counts alone cannot satisfy it.
     # qPCR Protocol ----------------------------------------------------------
     if field_id == "protocol_instrument":
         for key in ("instrument", "instrument_type", "Instrument Type"):
@@ -90,17 +92,12 @@ def _derive_field(field_id: str, experiment: Experiment) -> tuple[str, str] | No
             return "reported", f"dye chemistry on: {', '.join(with_dye)}"
     # Data Analysis ----------------------------------------------------------
     if field_id == "analysis_raw_data":
-        if experiment.metadata.get("rdml_version"):
-            srctype = experiment.metadata.get("source_file", "")
-            kind = "RDML" if "rdml" in str(srctype).lower() else "RDML"
-            return "reported", f"raw data from {kind}"
+        # The item demands raw fluorescence trajectories in an open format;
+        # only an in-memory trace set is genuine evidence (Ct values are not).
         if experiment.has_traces:
             return "reported", "raw amplification traces present"
-        if experiment.wells:
-            return "reported", "Ct values reported"
-    if field_id == "analysis_cq_method":
-        if experiment.wells and any(w.cq is not None for w in experiment.wells):
-            return "reported", "Cq values reported"
+    # analysis_cq_method demands the baseline/Cq *method*, which is not
+    # captured from the data; having Cq values is not the method.
     if field_id == "analysis_efficiency":
         with_eff = sorted(
             a.name for a in experiment.assays.values() if a.efficiency is not None
@@ -119,15 +116,15 @@ def _derive_field(field_id: str, experiment: Experiment) -> tuple[str, str] | No
         if tech:
             return "reported", f"technical replicates: {len(tech)} wells"
     if field_id == "analysis_normalization":
+        # Which genes are declared reference targets is attestable; the
+        # wording states this is the declared normalisation approach, not a
+        # full calculation.
         if experiment.has_reference_genes:
             return "reported", (
-                f"reference genes: {', '.join(experiment.reference_targets)}"
+                f"reference genes declared: {', '.join(experiment.reference_targets)}"
             )
-    if field_id == "analysis_reference_validation":
-        if experiment.has_reference_genes:
-            return "reported", (
-                f"reference genes: {', '.join(experiment.reference_targets)}"
-            )
+    # analysis_reference_validation demands the *validation method*, which the
+    # data does not record; declaring reference genes is not validation.
     if field_id == "analysis_quantification_method":
         if experiment.method is not None:
             return "reported", f"method: {experiment.method.value}"
@@ -341,6 +338,7 @@ class Miqe2Report:
         return {
             "standard": "MIQE 2.0 (2025)",
             "experiment_name": self._experiment_name,
+            "total_items": len(self._items),
             "summary": self.summary,
             "essential_completeness": round(self.essential_completeness, 3),
             "items": [
@@ -422,7 +420,7 @@ def miqe2_checklist(
             Name to label the report (defaults to ``experiment.name``).
 
     Returns
-        :class:`Miqe2Report` spanning all 46 MIQE 2.0 items.
+        :class:`Miqe2Report` spanning every item in :data:`MIQE2_FIELDS`.
     """
     answers = answers or {}
     name = experiment_name or (experiment.name if experiment is not None else "manual")

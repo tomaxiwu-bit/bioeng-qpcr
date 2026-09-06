@@ -86,6 +86,70 @@ class TestCatalog:
     def test_catalog_is_substantial(self):
         assert len(MIQE2_FIELDS) >= 40
 
+    def test_catalog_locked_snapshot(self):
+        # Anti-drift oracle: changing the MIQE 2.0 Table 1 transcription is a
+        # deliberate act.  Snapshot of field ids and essentiality as shipped;
+        # any intended change must update this snapshot consciously.
+        expected_ids = [
+            f[0] for f in (
+                ("reagent_gene_symbols", "reagent", "", True, ""),
+                ("reagent_amplicon_position", "reagent", "", True, ""),
+                ("reagent_amplicon_length", "reagent", "", True, ""),
+                ("reagent_sequences", "reagent", "", False, ""),
+                ("reagent_modifications", "reagent", "", False, ""),
+                ("reagent_oligo_manufacturer", "reagent", "", False, ""),
+                ("reagent_optimization", "reagent", "", False, ""),
+                ("sample_types_quantity", "sample", "", True, ""),
+                ("sample_procedure", "sample", "", True, ""),
+                ("sample_storage", "sample", "", True, ""),
+                ("sample_extraction", "sample", "", True, ""),
+                ("sample_spike_in", "sample", "", False, ""),
+                ("sample_elution", "sample", "", True, ""),
+                ("sample_extraction_replicates", "sample", "", False, ""),
+                ("sample_blank_recovery", "sample", "", False, ""),
+                ("sample_nucleic_assessment", "sample", "", True, ""),
+                ("sample_storage_conditions", "sample", "", True, ""),
+                ("sample_dilution_series", "sample", "", True, ""),
+                ("sample_template_modification", "sample", "", False, ""),
+                ("sample_post_modification_cleanup", "sample", "", False, ""),
+                ("rt_priming", "rt", "", True, ""),
+                ("rt_one_step_two_step", "rt", "", True, ""),
+                ("rt_rna_amount", "rt", "", True, ""),
+                ("rt_components", "rt", "", True, ""),
+                ("rt_no_rt_control", "rt", "", False, ""),
+                ("rt_manufacturer", "rt", "", False, ""),
+                ("rt_cdna_storage", "rt", "", False, ""),
+                ("protocol_template_treatment", "protocol", "", False, ""),
+                ("protocol_oligo_conc", "protocol", "", True, ""),
+                ("protocol_reaction_chemistry", "protocol", "", False, ""),
+                ("protocol_kit", "protocol", "", True, ""),
+                ("protocol_thermal_cycling", "protocol", "", True, ""),
+                ("protocol_instrument", "protocol", "", True, ""),
+                ("protocol_dye", "protocol", "", False, ""),
+                ("analysis_raw_data", "analysis", "", True, ""),
+                ("analysis_standard", "analysis", "", True, ""),
+                ("analysis_cq_method", "analysis", "", True, ""),
+                ("analysis_software", "analysis", "", True, ""),
+                ("analysis_controls", "analysis", "", True, ""),
+                ("analysis_nc_frequency", "analysis", "", False, ""),
+                ("analysis_examples", "analysis", "", False, ""),
+                ("analysis_efficiency", "analysis", "", True, ""),
+                ("analysis_quantification_method", "analysis", "", True, ""),
+                ("analysis_repeats", "analysis", "", True, ""),
+                ("analysis_repeatability", "analysis", "", False, ""),
+                ("analysis_reproducibility", "analysis", "", False, ""),
+                ("analysis_lod", "analysis", "", False, ""),
+                ("analysis_loq_dynamic_range", "analysis", "", True, ""),
+                ("analysis_reference_validation", "analysis", "", True, ""),
+                ("analysis_normalization", "analysis", "", True, ""),
+                ("analysis_statistics", "analysis", "", True, ""),
+                ("analysis_significance_power", "analysis", "", False, ""),
+                ("analysis_specificity", "analysis", "", False, ""),
+            )
+        ]
+        assert [f[0] for f in MIQE2_FIELDS] == expected_ids
+        assert len(MIQE2_FIELDS) == 53
+
 
 class TestAssessment:
     def test_manual_checklist_empty_experiment(self):
@@ -106,18 +170,56 @@ class TestAssessment:
         assert any(i.field_id == "protocol_instrument" for i in essential_missing)
         assert all(i.essential for i in essential_missing)
 
-    def test_rdml_source_auto_reports_raw_data(self):
+    def test_cq_only_experiment_does_not_fake_raw_data(self):
         report = miqe2_checklist(_minimal_experiment())
         raw = next(i for i in report.items if i.field_id == "analysis_raw_data")
+        # Ct values are NOT evidence of raw-fluorescence submission
+        assert raw.status == "missing"
+        assert raw.evidence == ""
+
+    def test_trace_carrying_experiment_reports_raw_data(self):
+        from bioeng_qpcr.domain.entities import RawTrace
+
+        base = _minimal_experiment()
+        experiment = Experiment(
+            name=base.name,
+            wells=base.wells,
+            samples=base.samples,
+            assays=base.assays,
+            input_level=base.input_level,
+            method=base.method,
+            metadata=base.metadata,
+            traces={
+                "A01": RawTrace(
+                    position="A01",
+                    cycles=__import__("numpy").array([1, 2, 3]),
+                    fluorescence=__import__("numpy").array([0.5, 0.9, 1.8]),
+                )
+            },
+        )
+        report = miqe2_checklist(experiment)
+        raw = next(i for i in report.items if i.field_id == "analysis_raw_data")
         assert raw.status == "reported"
-        assert "RDML" in raw.evidence
+        assert "raw amplification traces" in raw.evidence
 
     def test_reference_genes_auto_report_normalization(self):
         report = miqe2_checklist(_minimal_experiment())
-        for field in ("analysis_normalization", "analysis_reference_validation"):
-            item = next(i for i in report.items if i.field_id == field)
-            assert item.status == "reported"
-            assert "GAPDH" in item.evidence
+        norm = next(i for i in report.items if i.field_id == "analysis_normalization")
+        assert norm.status == "reported"
+        assert "GAPDH" in norm.evidence
+        # declaring reference genes is NOT a validation *method*
+        validation = next(
+            i for i in report.items if i.field_id == "analysis_reference_validation"
+        )
+        assert validation.status == "missing"
+
+    def test_no_false_positive_for_method_and_identity_items(self):
+        report = miqe2_checklist(_minimal_experiment())
+        by_id = {i.field_id: i for i in report.items}
+        # data only carries target names - species/accession/source/method are gone
+        assert by_id["reagent_gene_symbols"].status == "missing"
+        assert by_id["sample_types_quantity"].status == "missing"
+        assert by_id["analysis_cq_method"].status == "missing"
 
     def test_primer_sequences_auto_report(self):
         report = miqe2_checklist(_minimal_experiment())
@@ -183,8 +285,10 @@ class TestReportOutput:
         )
         report = miqe2_checklist(experiment)
         reported = {i.field_id for i in report.reported}
-        assert "reagent_gene_symbols" in reported
-        assert "sample_types_quantity" in reported
+        missing = {i.field_id for i in report.missing}
+        # identity/source/method info is not in the data -> not overstated
+        assert "reagent_gene_symbols" in missing
+        assert "sample_types_quantity" in missing
         # example carries efficiency and NTC wells
         assert "analysis_efficiency" in reported
         assert "analysis_nc_frequency" in reported

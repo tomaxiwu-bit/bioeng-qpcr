@@ -58,6 +58,8 @@ _EFF_LOW: float = 0.30
 _EFF_HIGH: float = 2.50
 #: Minimum fit R² before a well is considered degraded on curve quality.
 _R2_GOOD: float = 0.98
+#: Minimum R² of the log-linear fit before a per-well efficiency is trusted.
+_EFF_R2_MIN: float = 0.95
 #: Smallest number of cycles for a standard amplification curve.
 _MIN_CYCLES: int = 4
 #: Minimum number of points in the exponential window for an efficiency fit.
@@ -400,7 +402,9 @@ def _exponential_window_efficiency(
     cost of underestimating the instantaneous slope for a symmetric logistic.
 
     Returns ``(eff, slope, n_points)``, or ``(None, None, 0)`` when fewer
-    than :data:`_MIN_EFF_POINTS` corrected points fall inside the window.
+    than :data:`_MIN_EFF_POINTS` corrected points fall inside the window or
+    when the log-linear fit is too poor (R² < :data:`_EFF_R2_MIN`) to be a
+    trustworthy amplification estimate.
     """
     idx = np.flatnonzero((dR > 0.05 * plateau) & (dR <= 0.40 * plateau))
     if idx.size < _MIN_EFF_POINTS:
@@ -409,9 +413,15 @@ def _exponential_window_efficiency(
     ys = np.log(dR[idx])
     if not np.all(np.isfinite(ys)):
         return None, None, 0
-    slope = float(np.polyfit(xs, ys, 1)[0])
+    slope, intercept = np.polyfit(xs, ys, 1)
+    pred = slope * xs + intercept
+    ss_res = float(np.sum((ys - pred) ** 2))
+    ss_tot = float(np.sum((ys - np.mean(ys)) ** 2))
+    r_squared = 1.0 - ss_res / ss_tot if ss_tot > 0 else 0.0
+    if r_squared < _EFF_R2_MIN:
+        return None, None, 0
     eff = float(np.exp(slope) - 1.0)
-    return eff, slope, int(idx.size)
+    return eff, float(slope), int(idx.size)
 
 
 # ---------------------------------------------------------------------------
@@ -547,7 +557,11 @@ def fit_amplification_curve(
     status = "ok"
     if eff is None:
         status = "degraded"
-        warnings.append("Exponential window too short to estimate efficiency.")
+        warnings.append(
+            "Efficiency estimate rejected: exponential window too short or its "
+            "log-linear fit too poor (R² below "
+            f"{_EFF_R2_MIN:.2f}) to be reliable."
+        )
     else:
         if not (_EFF_LOW <= eff <= _EFF_HIGH):
             status = "degraded"
