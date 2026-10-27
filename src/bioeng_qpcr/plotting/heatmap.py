@@ -8,11 +8,10 @@ corresponds to low expression and is drawn *dark*.  Missing Cq values
 
 from __future__ import annotations
 
-import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.axes import Axes
-from matplotlib.figure import Figure
 from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.figure import Figure
 
 from bioeng_qpcr.domain.entities import Experiment
 from bioeng_qpcr.plotting.style import PlotStyle, apply_style, create_figure
