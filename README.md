@@ -192,7 +192,7 @@ curve fitting (baseline correction, sigmoid Cq, per-well efficiency, and an
 amplification plot).  Upload a tidy CSV, long-format amplification CSV, or
 RDML file; everything runs locally and plots render as in-browser PNG data
 URIs. Override the port with `BIOENG_QPCR_WEB_PORT`. The workbench accepts
-`localhost`, `127.0.0.1`, and `[::1]` hosts and rejects browser writes from
+`localhost` and `127.0.0.1` hosts and rejects browser writes from
 other origins. It is designed for local use; changing the bind address does
 not turn it into a public multi-user service.
 

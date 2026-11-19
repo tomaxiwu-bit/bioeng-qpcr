@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import numpy as np
 import pytest
 
@@ -408,7 +410,15 @@ class TestRelativePotency:
         strong, weak = self._pair()
         comparison = relative_potency(strong, weak)
         assert comparison.ci is not None
-        assert comparison.ci[0] < comparison.ratio < comparison.ci[1]
+        assert comparison.ci[0] <= comparison.ratio <= comparison.ci[1]
+
+    def test_degenerate_interval_preserves_the_exact_ratio(self):
+        strong, weak = self._pair()
+        value = float(np.nextafter(0.01, 0.0))
+        strong = replace(strong, relative_value=value, relative_ci=(value, value))
+        weak = replace(weak, relative_value=1.0, relative_ci=(1.0, 1.0))
+        comparison = relative_potency(strong, weak)
+        assert comparison.ci == (comparison.ratio, comparison.ratio)
 
     def test_mixing_potency_kinds_is_rejected(self):
         inhibition = fit_dose_response(make_inhibition_dataset())

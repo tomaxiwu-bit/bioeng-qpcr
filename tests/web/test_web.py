@@ -65,7 +65,7 @@ def local_client(tmp_path):
     return app.test_client()
 
 
-@pytest.mark.parametrize("host", ["localhost", "127.0.0.1:8008", "[::1]:8008"])
+@pytest.mark.parametrize("host", ["localhost", "127.0.0.1:8008"])
 def test_loopback_hosts_and_matching_origins_are_accepted(local_client, host):
     origin = f"http://{host}"
     assert local_client.get("/api/health", base_url=origin).status_code == 200
@@ -76,8 +76,11 @@ def test_loopback_hosts_and_matching_origins_are_accepted(local_client, host):
     assert "No file" in response.get_json()["error"]
 
 
-def test_untrusted_host_cannot_read_or_create_projects(local_client):
-    origin = "http://untrusted.example"
+@pytest.mark.parametrize(
+    "host", ["untrusted.example", "[2001:db8::1]", "localhost.untrusted.example"]
+)
+def test_untrusted_host_cannot_read_or_create_projects(local_client, host):
+    origin = f"http://{host}"
     assert local_client.get("/api/qpcr/projects", base_url=origin).status_code == 400
     assert local_client.post(
         "/api/qpcr/projects", base_url=origin,

@@ -376,7 +376,7 @@ def create_app() -> Flask:
     template_dir = Path(__file__).parent / "templates"
     app = Flask("bioeng_qpcr", template_folder=str(template_dir))
     app.config["MAX_CONTENT_LENGTH"] = 64 * 1024 * 1024
-    app.config["TRUSTED_HOSTS"] = ["localhost", "127.0.0.1", "[::1]"]
+    app.config["TRUSTED_HOSTS"] = ["localhost", "127.0.0.1"]
 
     @app.before_request
     def local_writes():

@@ -37,9 +37,10 @@ class _DropEvent:
         self.accepted = False
 
 
-def test_drop_selects_file_and_remembers_its_directory() -> None:
+def test_drop_selects_file_and_remembers_its_directory(tmp_path) -> None:
     app = QApplication.instance() or QApplication([])
-    path = Path("test_data/qpcr_expression_test.csv").resolve()
+    path = tmp_path / "input.csv"
+    path.write_text("sample,cq\nexample,20\n", encoding="utf-8")
     selector = FileSelector()
     settings = _Settings()
     selector._settings = settings

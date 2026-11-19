@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import replace
 
 import numpy as np
+import pytest
 
 from bioeng_qpcr.potency import (
     DoseResponseDataset,
@@ -13,6 +14,7 @@ from bioeng_qpcr.potency import (
     fit_dose_response_curve,
     run_potency_validation,
 )
+from bioeng_qpcr.potency.models import evaluate_model
 from bioeng_qpcr.potency.validation import (
     validate_assay_window,
     validate_ci_width,
@@ -170,6 +172,19 @@ class TestPlateauSupportRule:
 
 
 class TestModelAdequacyRule:
+    @pytest.mark.parametrize("drift,passed", [(1e-13, True), (0.1, False)])
+    def test_roundoff_is_ignored_but_real_residual_trends_remain(self, drift, passed):
+        dataset = make_asymmetric_dataset()
+        fit = fit_dose_response_curve(dataset, DoseResponseModel.FIVE_PL)
+        predicted = evaluate_model(
+            fit.model, fit.parameters, np.log10(dataset.concentration)
+        )
+        perturbed = replace(
+            dataset, response=predicted + np.linspace(-drift, drift, predicted.size)
+        )
+        check = validate_model_adequacy(fit, perturbed)
+        assert check.passed is passed
+
     def test_adequate_model_passes(self):
         dataset = make_inhibition_dataset(noise=1.5)
         result = fit_dose_response_curve(dataset)

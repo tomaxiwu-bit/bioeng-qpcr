@@ -732,6 +732,12 @@ def validate_model_adequacy(
     x_sorted = log_concentration[order]
     predicted = evaluate_model(fit.model, fit.parameters, x_sorted)
     residuals = response[order] - predicted
+    # Rank tests on roundoff-only residuals turn platform noise into evidence.
+    residual_tolerance = 64 * np.finfo(float).eps * float(
+        max(np.max(np.abs(response)), np.max(np.abs(predicted)))
+    )
+    numerically_exact = bool(np.all(np.abs(residuals) <= residual_tolerance))
+    residuals = np.where(np.abs(residuals) <= residual_tolerance, 0.0, residuals)
 
     evidence: dict[str, Any] = {
         "model": fit.model.value,
@@ -739,11 +745,13 @@ def validate_model_adequacy(
         "max_delta_aicc": max_delta_aicc,
         "z_threshold": z_threshold,
         "rho_threshold": rho_threshold,
+        "residual_tolerance": residual_tolerance,
+        "residuals_within_numerical_tolerance": numerically_exact,
     }
 
     # --- Primary: lack of fit against the most flexible nested model ------
     delta_aicc = 0.0
-    if fit.model is not DoseResponseModel.FIVE_PL:
+    if fit.model is not DoseResponseModel.FIVE_PL and not numerically_exact:
         try:
             flexible = fit_dose_response_curve(
                 dataset,
@@ -786,7 +794,7 @@ def validate_model_adequacy(
     evidence["z"] = z_statistic
 
     rho = 0.0
-    if residuals.size >= 3:
+    if residuals.size >= 3 and np.ptp(residuals) > 0:
         rho = float(spearmanr(x_sorted, residuals).statistic)
         if not np.isfinite(rho):
             rho = 0.0

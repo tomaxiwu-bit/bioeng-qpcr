@@ -1392,7 +1392,6 @@ def relative_potency(
         # Combine the two independent log-scale half-spans in quadrature.
         # Opposite sides pair because A/B decreases with A and increases as B
         # decreases.  This retains asymmetry from bootstrap intervals.
-        log_ratio = math.log10(ratio)
         log_a = math.log10(value_a)
         log_b = math.log10(value_b)
         lower_span = math.hypot(
@@ -1404,8 +1403,8 @@ def relative_potency(
             log_b - math.log10(ci_b[0]),
         )
         interval = (
-            float(10.0 ** (log_ratio - lower_span)),
-            float(10.0 ** (log_ratio + upper_span)),
+            float(ratio * 10.0 ** -lower_span),
+            float(ratio * 10.0 ** upper_span),
         )
 
     fold = max(ratio, 1.0 / ratio)
