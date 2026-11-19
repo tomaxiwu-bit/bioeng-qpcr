@@ -180,6 +180,8 @@ def compare_groups(
     contain at least two valid biological samples. The returned batch object
     preserves exclusions and should be reported alongside the comparison.
     """
+    if treated_group == control_group:
+        raise ValueError("Treated and control groups must be different.")
     batch = normalized_quantity_all(experiment, target_name, reference_targets)
     by_sample = {result.sample_name: result for result in batch.results}
     treated = {

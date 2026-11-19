@@ -20,7 +20,35 @@ if TYPE_CHECKING:
     from bioeng_qpcr.enzyme_kinetics.inhibition import InhibitionDataset
     from bioeng_qpcr.enzyme_kinetics.michaelis_menten import MichaelisMentenResult
 
-__all__ = ["plot_lineweaver_burk", "plot_michaelis_menten"]
+__all__ = ["plot_lineweaver_burk", "plot_michaelis_menten", "plot_global_inhibition"]
+
+
+def plot_global_inhibition(fit, datasets):
+    """Plot original rates and residuals for the selected global mechanism."""
+    fig, (ax, residual) = plt.subplots(1, 2, figsize=(9, 4))
+    residual.axhline(0, color="#777777", linewidth=1, linestyle="--")
+    for index, (inhibitor, substrate, velocity) in enumerate(datasets):
+        substrate, velocity = np.asarray(substrate), np.asarray(velocity)
+        grid = np.linspace(0, float(np.max(substrate)), 150)
+        color = f"C{index % 10}"
+        ax.scatter(substrate, velocity, color=color, s=25, label=f"[I] = {inhibitor:g}")
+        ax.plot(grid, fit.predict(grid, inhibitor), color=color)
+        residual.scatter(
+            substrate, velocity - fit.predict(substrate, inhibitor), color=color, s=25
+        )
+    ax.set(
+        xlabel="Substrate concentration",
+        ylabel="Initial velocity",
+        title=f"Global fit: {fit.inhibition_type.value}",
+    )
+    residual.set(
+        xlabel="Substrate concentration",
+        ylabel="Observed − fitted",
+        title="Residual diagnostics",
+    )
+    ax.legend(fontsize=8)
+    fig.tight_layout()
+    return fig, (ax, residual)
 
 
 def plot_michaelis_menten(

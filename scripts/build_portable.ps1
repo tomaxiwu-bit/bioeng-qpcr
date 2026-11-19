@@ -8,7 +8,7 @@ $ErrorActionPreference = "Stop"
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
 if (-not $SourceDirectory) {
-    $SourceDirectory = Join-Path $projectRoot "dist-fixed\bioeng-qpcr"
+    $SourceDirectory = Join-Path $projectRoot "dist\bioeng-qpcr"
 }
 if (-not $OutputDirectory) {
     $OutputDirectory = Join-Path $projectRoot "dist-release"
@@ -42,13 +42,25 @@ foreach ($target in ($stage, $archive, $archiveChecksum)) {
     }
 }
 
-$smoke = Start-Process -FilePath $executable -ArgumentList "--smoke-test" -PassThru -Wait -WindowStyle Hidden
+$smoke = Start-Process -FilePath $executable -ArgumentList "--smoke-test" -PassThru -WindowStyle Hidden
+if (-not $smoke.WaitForExit(60000)) {
+    $smoke.Kill()
+    throw "Packaged scientific smoke test exceeded 60 seconds."
+}
 if ($smoke.ExitCode -ne 0) {
     throw "Packaged scientific smoke test failed with exit code $($smoke.ExitCode)."
 }
 
 Copy-Item -LiteralPath $source.FullName -Destination $stage -Recurse
 Copy-Item -LiteralPath (Join-Path $projectRoot "packaging\README-PORTABLE.txt") -Destination (Join-Path $stage "README-PORTABLE.txt")
+Copy-Item -LiteralPath (Join-Path $projectRoot "LICENSE") -Destination (Join-Path $stage "LICENSE")
+Copy-Item -LiteralPath (Join-Path $projectRoot "THIRD_PARTY_NOTICES.md") -Destination (Join-Path $stage "THIRD_PARTY_NOTICES.md")
+Copy-Item -LiteralPath (Join-Path $internal "BUILD_INFO.json") -Destination (Join-Path $stage "BUILD_INFO.json")
+$buildInfo = Get-Content -LiteralPath (Join-Path $stage "BUILD_INFO.json") -Raw | ConvertFrom-Json
+if ($buildInfo.software_version -ne $version) {
+    throw "The executable build does not match the release version."
+}
+Copy-Item -LiteralPath (Join-Path $projectRoot "docs") -Destination (Join-Path $stage "docs") -Recurse
 
 $manifestPath = Join-Path $stage "MANIFEST.sha256"
 $manifestLines = Get-ChildItem -LiteralPath $stage -File -Recurse |

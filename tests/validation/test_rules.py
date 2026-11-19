@@ -17,7 +17,7 @@ from __future__ import annotations
 import pytest
 
 from bioeng_qpcr.domain.entities import Assay, Experiment, Well
-from bioeng_qpcr.domain.enums import RuleStatus
+from bioeng_qpcr.domain.enums import ReplicateType, RuleStatus
 from bioeng_qpcr.validation.registry import RuleRegistry
 from bioeng_qpcr.validation.rules import register_all
 from bioeng_qpcr.validation.rules.assay_001 import check_assay_characterization
@@ -451,6 +451,29 @@ class TestAssayCharacterizationPolicy:
         )
         assert result.status is RuleStatus.WARN
         assert result.evidence["invalid_declared_minimum_r2"] is True
+
+
+@pytest.mark.parametrize(
+    "cqs,status", [
+        ([20.0, 20.1, None], RuleStatus.WARN),
+        ([20.0, 21.0, None], RuleStatus.FAIL),
+        ([None, None, None], RuleStatus.NOT_ASSESSABLE),
+    ],
+)
+def test_undetermined_replicates_remain_visible(cqs, status) -> None:
+    experiment = Experiment(name="partial", wells=[
+        Well(
+            position=f"A{i + 1:02d}", sample_name="S", target_name="T", cq=cq,
+            replicate_type=ReplicateType.TECHNICAL,
+        )
+        for i, cq in enumerate(cqs)
+    ])
+    result = check_technical_replicates(experiment)
+    assert result.status is status
+    assert result.evidence["incomplete_groups"] == ["S/T/ungrouped"]
+    evidence = result.evidence["groups"]["S/T/ungrouped"]
+    assert evidence["n_total"] == 3
+    assert evidence["n_undetermined"] == cqs.count(None)
 
 
 def test_invalid_replicate_threshold_warns_instead_of_crashing() -> None:

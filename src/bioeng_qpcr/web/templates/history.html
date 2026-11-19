@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BioLab · 统一分析历史</title>
+<style>
+:root{--ink:#243d32;--muted:#748076;--line:#dfe7df;--green:#2b6b50}*{box-sizing:border-box}body{margin:0;background:#f4f6f3;color:var(--ink);font:14px/1.7 'Segoe UI','Microsoft YaHei',sans-serif}a{color:var(--green);text-decoration:none}header{padding:20px 5%;background:white;border-bottom:1px solid var(--line);display:flex;gap:28px;align-items:center}.brand{font-weight:700;font-size:20px}main{max-width:1250px;padding:36px 24px;margin:auto}.eyebrow{font:11px Consolas,monospace;letter-spacing:2px;color:var(--green)}h1{font-size:30px;margin:8px 0}p{color:var(--muted)}.bar,.projects,.card{border:1px solid var(--line);border-radius:12px;background:white}.projects{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:18px 22px;margin:25px 0}.bar{display:flex;align-items:center;gap:12px;padding:15px;margin-bottom:16px;flex-wrap:wrap}input,select,button{font:inherit;padding:9px 12px;border:1px solid var(--line);border-radius:7px;background:white;color:var(--ink)}input{min-width:240px;flex:1}button{cursor:pointer}.card{overflow:auto}table{width:100%;border-collapse:collapse;text-align:left;white-space:nowrap}th,td{padding:16px;border-bottom:1px solid var(--line)}th{font-size:12px;color:var(--muted);background:#fbfcfa}td a{margin-right:12px}.module{background:#edf4ee;padding:3px 9px;border-radius:20px;font-size:12px}#status{color:var(--muted)}.title{white-space:normal;min-width:220px;max-width:450px}a:focus-visible,input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid var(--green);outline-offset:3px}@media(max-width:650px){main{padding:22px 14px}header{padding:16px}.projects{align-items:start;flex-direction:column}h1{font-size:25px}}
+</style></head><body>
+<header><a class="brand" href="/lab">BioLab</a><a href="/lab">全部实验模块</a><span>统一分析历史</span></header>
+<main><div class="eyebrow">INPUTS / PARAMETERS / RESULTS</div><h1>每次分析，都有据可查</h1><p>恢复当时的输入、参数与完整结果；重新运行会生成新记录。所有记录保存在本机。</p>
+<div class="projects"><div><strong>qPCR 实验项目</strong><p>样品、实验设计、运行快照与定量报告，继续在项目内管理。</p></div><a href="/workbench">查看实验项目 →</a></div>
+<div class="bar"><select id="module" aria-label="筛选历史模块"></select><input id="query" type="search" aria-label="搜索历史文件名" placeholder="搜索文件名或保存时间…"><button id="refresh">刷新记录</button></div>
+<p id="status" role="status" aria-live="polite">正在读取本机历史…</p>
+<div class="card"><table><thead><tr><th>保存时间（UTC）</th><th>实验模块</th><th>输入文件</th><th>操作</th></tr></thead><tbody id="rows"></tbody></table></div>
+</main><script>
+const names={all:'全部分析模块',enzyme:'酶动力学',ferment:'发酵动力学',fba:'代谢通量 FBA',potency:'效价分析',docking:'分子对接',sequence:'测序比对',preview_csv:'数据表预览',preview_image:'图片预览'};
+const moduleSelect=document.querySelector('#module'), rows=document.querySelector('#rows'), status=document.querySelector('#status'), query=document.querySelector('#query');
+for(const [value,label] of Object.entries(names)){const option=document.createElement('option');option.value=value;option.textContent=label;moduleSelect.appendChild(option)}
+let records=[],requestVersion=0;
+function draw(){
+  const needle=query.value.trim().toLowerCase(), visible=records.filter(r=>(r.title+' '+r.created_at).toLowerCase().includes(needle));rows.replaceChildren();
+  for(const record of visible){const tr=document.createElement('tr');
+    for(const [index,text] of [record.created_at.slice(0,19).replace('T',' '),names[record.module]||record.module,record.title].entries()){const td=document.createElement('td');td.textContent=text;if(index===2)td.className='title';tr.appendChild(td)}
+    const td=document.createElement('td'),open=document.createElement('a'),backup=document.createElement('a');
+    open.href='/workspace?record='+encodeURIComponent(record.id)+'#'+encodeURIComponent(record.module);open.textContent='恢复与审阅 →';backup.href='/api/lab/records/'+encodeURIComponent(record.id)+'/export';backup.textContent='下载备份';backup.download='biolab-analysis.json';td.append(open,backup);tr.appendChild(td);rows.appendChild(tr);
+  }
+  status.textContent=visible.length+' 条匹配记录 · 每个筛选范围展示最近 100 条；qPCR 历史保留在实验项目内。';
+}
+async function refresh(){const token=++requestVersion;try{status.textContent='正在读取本机历史…';const response=await fetch('/api/lab/records?module='+encodeURIComponent(moduleSelect.value));const data=await response.json();if(!response.ok)throw Error(data.error);if(token!==requestVersion)return;records=data.records;draw()}catch(error){if(token===requestVersion){records=[];rows.replaceChildren();status.textContent='读取失败：'+error.message}}}
+moduleSelect.addEventListener('change',refresh);query.addEventListener('input',draw);document.querySelector('#refresh').addEventListener('click',refresh);refresh();
+</script></body></html>

@@ -414,6 +414,19 @@ class TestHashStability:
 
 
 class TestPackageVersions:
+    def test_run_captures_bundled_build_and_actual_version(self, tmp_path, monkeypatch):
+        import bioeng_qpcr.provenance.manifest as module
+        from bioeng_qpcr import __version__
+
+        (tmp_path / "build-info.json").write_text(json.dumps({"git_dirty": True}))
+        monkeypatch.setattr(
+            module, "__file__", str(tmp_path / "provenance/manifest.py")
+        )
+        data = ProvenanceManifest.capture_run(parameters={"method": "test"})
+        assert data["package_versions"]["bioeng_qpcr"] == __version__
+        assert data["runtime"]["build"] == {"git_dirty": True}
+        assert data["runtime"]["python"]
+
     def test_capture_all_tracked(self) -> None:
         versions = ProvenanceManifest.capture_package_versions()
         assert set(versions) == {"bioeng_qpcr", "numpy", "scipy", "pandas"}

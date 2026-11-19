@@ -91,7 +91,8 @@ class TestCatalog:
         # deliberate act.  Snapshot of field ids and essentiality as shipped;
         # any intended change must update this snapshot consciously.
         expected_ids = [
-            f[0] for f in (
+            f[0]
+            for f in (
                 ("reagent_gene_symbols", "reagent", "", True, ""),
                 ("reagent_amplicon_position", "reagent", "", True, ""),
                 ("reagent_amplicon_length", "reagent", "", True, ""),
@@ -231,13 +232,14 @@ class TestAssessment:
         report = miqe2_checklist(
             _minimal_experiment(),
             answers={
-                "protocol_kit": True,
+                "protocol_kit": "Bio-Rad iTaq, catalog 1725121",
                 "analysis_nc_frequency": False,
             },
         )
         kit = next(i for i in report.items if i.field_id == "protocol_kit")
         ncf = next(i for i in report.items if i.field_id == "analysis_nc_frequency")
         assert kit.status == "reported"
+        assert kit.evidence == "Bio-Rad iTaq, catalog 1725121"
         # non-essential field answered False + no experiment evidence -> NA
         assert ncf.status == "na"
 
@@ -246,14 +248,68 @@ class TestAssessment:
         kit = next(i for i in report.items if i.field_id == "protocol_kit")
         assert kit.status == "missing"
 
+    def test_evidence_string_is_preserved(self):
+        report = miqe2_checklist(
+            _minimal_experiment(),
+            answers={"protocol_kit": "Bio-Rad iTaq, catalog 1725121, lot 42"},
+        )
+        kit = next(i for i in report.items if i.field_id == "protocol_kit")
+        assert kit.status == "reported"
+        assert kit.evidence == "Bio-Rad iTaq, catalog 1725121, lot 42"
+        assert all(
+            "protocol_kit" not in action["resolves"]
+            for action in report.evidence_gap_plan
+        )
+
+    @pytest.mark.parametrize(
+        "answers, message",
+        [
+            ({"not_a_miqe_field": True}, "Unknown MIQE 2.0 field"),
+            ({"protocol_kit": "  "}, "non-empty evidence strings"),
+            ({"protocol_kit": True}, "false or non-empty evidence strings"),
+            ({"protocol_kit": 1}, "false or non-empty evidence strings"),
+        ],
+    )
+    def test_invalid_answers_are_rejected(self, answers, message):
+        with pytest.raises(ValueError, match=message):
+            miqe2_checklist(_minimal_experiment(), answers=answers)
+
 
 class TestReportOutput:
+    def test_evidence_gap_plan_covers_every_missing_essential_item(self):
+        report = miqe2_checklist(_minimal_experiment())
+        missing = {
+            item.field_id
+            for item in report.items
+            if item.essential and item.status == "missing"
+        }
+        covered = {
+            field_id
+            for action in report.evidence_gap_plan
+            for field_id in action["resolves"]
+        }
+
+        assert covered == missing
+        assert [action["rank"] for action in report.evidence_gap_plan] == list(
+            range(1, len(report.evidence_gap_plan) + 1)
+        )
+        assert (
+            report.evidence_gap_plan[0]["priority_score"]
+            >= (report.evidence_gap_plan[-1]["priority_score"])
+        )
+
+    def test_complete_essential_checklist_needs_no_actions(self):
+        answers = {
+            field_id: f"documented evidence for {field_id}"
+            for field_id, _category, _label, essential, _description in MIQE2_FIELDS
+            if essential
+        }
+        assert miqe2_checklist(answers=answers).evidence_gap_plan == []
+
     def test_essential_completeness(self):
         report = miqe2_checklist(_minimal_experiment())
         essential_total = sum(
-            1
-            for i in report.items
-            if i.essential and i.status != "na"
+            1 for i in report.items if i.essential and i.status != "na"
         )
         reported = sum(
             1 for i in report.items if i.essential and i.status == "reported"
@@ -267,6 +323,7 @@ class TestReportOutput:
         payload = report.to_dict()
         assert payload["standard"] == "MIQE 2.0 (2025)"
         assert payload["experiment_name"] == "minimal"
+        assert payload["evidence_gap_plan"]
         assert len(payload["items"]) == len(MIQE2_FIELDS)
 
     def test_to_json_parses(self):
@@ -277,6 +334,7 @@ class TestReportOutput:
         text = miqe2_checklist(_minimal_experiment()).to_text()
         assert "Reagent Preparation" in text
         assert "essential completeness" in text.lower()
+        assert "PRIORITIZED EVIDENCE-GAP PLAN" in text
 
     def test_real_example_report(self):
         experiment = read_tidy_csv(

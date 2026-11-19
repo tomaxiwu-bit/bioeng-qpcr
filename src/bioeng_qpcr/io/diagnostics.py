@@ -8,13 +8,30 @@ from typing import Any
 
 @dataclass(frozen=True)
 class CSVValidationIssue:
-    """One actionable problem found while reading a tidy CSV file."""
+    """One actionable problem found while reading or previewing a CSV file.
+
+    Attributes
+        code:
+            Stable machine-readable identifier (e.g. ``"MISSING_COLUMN"``).
+        message:
+            Human-readable explanation.
+        column:
+            Column the issue belongs to, when applicable.
+        row:
+            One-based data row number (the header is row 1), when applicable.
+        value:
+            Offending value rendered as text.
+        severity:
+            ``"error"`` for a value that must be fixed before analysis,
+            ``"warning"`` for a caveat, ``"info"`` for context.
+    """
 
     code: str
     message: str
     column: str | None = None
     row: int | None = None
     value: str | None = None
+    severity: str = "error"
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serialisable representation."""

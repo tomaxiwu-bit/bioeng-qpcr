@@ -205,6 +205,73 @@ def verify_fba() -> None:
           f"blocked reactions={n_blocked}")
 
 
+def verify_potency() -> None:
+    from bioeng_qpcr.io import read_dose_response_csv
+    from bioeng_qpcr.potency import fit_dose_response
+
+    datasets = read_dose_response_csv(EXAMPLES / "dose_response_example.csv")
+    results = [fit_dose_response(dataset) for dataset in datasets]
+    if len(results) != 2 or any(result.best_fit.n_points != 33 for result in results):
+        raise SystemExit("potency example lost compounds or replicates")
+    if any(not result.best_fit.converged for result in results):
+        raise SystemExit("potency example did not converge")
+    expected = {"CompoundA": 3.2, "CompoundB": 45.0}
+    for result in results:
+        if abs(result.relative_value / expected[result.compound] - 1.0) > 0.01:
+            raise SystemExit(f"{result.compound} potency moved outside 1% tolerance")
+    print("Potency workflows OK: " + ", ".join(
+        f"{result.compound} {result.kind.value}={result.relative_value:.3g}"
+        for result in results
+    ))
+
+
+def verify_docking() -> None:
+    from bioeng_qpcr.docking import dock, parse_pdb, validate_docking
+
+    receptor = parse_pdb(EXAMPLES / "docking_receptor.pdb")
+    ligand = parse_pdb(EXAMPLES / "docking_ligand.pdb")
+    result = dock(receptor, ligand, n_runs=1, n_steps=50, seed=1)
+    if not result.poses:
+        raise SystemExit("docking example returned no poses")
+    checks = validate_docking(result, receptor, ligand)
+    if len(checks) != 10 or any(
+        check.severity == "error" and not check.passed for check in checks
+    ):
+        raise SystemExit("docking example failed its DCK validation layer")
+    print(f"Docking workflow OK: {len(result.poses)} ranked pose(s)")
+
+
+def verify_sequence() -> None:
+    from bioeng_qpcr.sequence import (
+        compare_to_reference,
+        read_sequence_file,
+        validate_sequencing_result,
+    )
+
+    query = read_sequence_file(EXAMPLES / "sequencing_reads.fastq")[0]
+    reference = read_sequence_file(EXAMPLES / "sequencing_reference.fasta")[0]
+    result = compare_to_reference(query.sequence, reference.sequence)
+    if result.identity < 0.99:
+        raise SystemExit(
+            f"sequence example identity regressed to {result.identity:.3f}"
+        )
+    report = validate_sequencing_result(result, query, reference, quality=query.quality)
+    if report.n_errors:
+        raise SystemExit("sequence example failed its SEQ validation layer")
+    print(f"Sequence workflow OK: identity={result.identity:.3f}")
+
+
+def verify_image_preview() -> None:
+    from bioeng_qpcr.io import inspect_image, load_preview
+
+    path = EXAMPLES / "image_preview_example.ppm"
+    info = inspect_image(path)
+    preview = load_preview(path, palette="green")
+    if info.width < 1 or info.height < 1 or preview.thumbnail.size == 0:
+        raise SystemExit("image preview example could not be rendered")
+    print(f"Image preview workflow OK: {info.format} {info.width}x{info.height}")
+
+
 def main() -> int:
     verify_qpcr()
     verify_rdml()
@@ -213,6 +280,10 @@ def main() -> int:
     verify_reference_gene_family()
     verify_fermentation()
     verify_fba()
+    verify_potency()
+    verify_docking()
+    verify_sequence()
+    verify_image_preview()
     print("All example workflows verified.")
     return 0
 

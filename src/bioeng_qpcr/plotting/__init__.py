@@ -14,6 +14,8 @@ Submodules
 * :mod:`bioeng_qpcr.plotting.enzyme_kinetics` -- MM and LB plots (Phase 2).
 * :mod:`bioeng_qpcr.plotting.fermentation_kinetics` -- growth curves (Phase 3).
 * :mod:`bioeng_qpcr.plotting.metabolic_flux` -- flux distribution (Phase 4).
+* :mod:`bioeng_qpcr.plotting.dose_response` -- IC50/EC50 curves (Phase 5).
+* :mod:`bioeng_qpcr.plotting.docking` -- pose ranking and energy terms.
 """
 
 from __future__ import annotations
@@ -26,6 +28,15 @@ from bioeng_qpcr.plotting.barplots import (
     plot_fold_change,
     plot_fold_change_with_ci,
 )
+from bioeng_qpcr.plotting.docking import (
+    plot_pose_ranking,
+    plot_score_terms,
+)
+from bioeng_qpcr.plotting.dose_response import (
+    plot_dose_response,
+    plot_dose_response_residuals,
+    plot_potency_comparison,
+)
 from bioeng_qpcr.plotting.enzyme_kinetics import (
     plot_lineweaver_burk,
     plot_michaelis_menten,
@@ -35,6 +46,11 @@ from bioeng_qpcr.plotting.fermentation_kinetics import (
 )
 from bioeng_qpcr.plotting.heatmap import plot_cq_heatmap
 from bioeng_qpcr.plotting.metabolic_flux import plot_flux_distribution
+from bioeng_qpcr.plotting.sequence import (
+    plot_alignment_coverage,
+    plot_read_qualities,
+    plot_variant_map,
+)
 from bioeng_qpcr.plotting.style import (
     PlotStyle,
     apply_style,
@@ -51,8 +67,12 @@ __all__ = [
     "plot_amplification_by_target",
     # amplification
     "plot_amplification_curves",
+    "plot_alignment_coverage",
     # heatmap
     "plot_cq_heatmap",
+    # dose_response
+    "plot_dose_response",
+    "plot_dose_response_residuals",
     # fermentation kinetics
     "plot_fermentation_kinetics",
     # metabolic flux
@@ -63,6 +83,12 @@ __all__ = [
     "plot_lineweaver_burk",
     # enzyme kinetics
     "plot_michaelis_menten",
+    # docking
+    "plot_pose_ranking",
+    "plot_potency_comparison",
+    "plot_read_qualities",
+    "plot_variant_map",
+    "plot_score_terms",
     "save_figure",
     "styled_plot",
 ]

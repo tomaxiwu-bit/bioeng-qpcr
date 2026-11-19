@@ -37,6 +37,9 @@ env/
 .coverage
 htmlcov/
 _tmp_*/
+.validation-data/
+.validation-results/
+.workbench/
 
 # Linting
 .ruff_cache/
@@ -49,3 +52,4 @@ Thumbs.db
 # Plots
 *.png
 !tests/fixtures/*.png
+!docs/images/*.png

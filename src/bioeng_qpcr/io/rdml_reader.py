@@ -115,6 +115,11 @@ _EFFICIENCY_FACTOR_RANGE = (1.0, 3.0)
 _NTC_SAMPLE_TYPE = "ntc"
 _REFERENCE_TARGET_TYPE = "ref"
 
+#: Hard ceiling for decompressed RDML XML.  The web upload limit applies to
+#: compressed bytes, so the container reader must independently bound the
+#: representation handed to ElementTree.
+_MAX_RDML_XML_BYTES = 64 * 1024 * 1024
+
 
 # ---------------------------------------------------------------------------
 # XML helpers (namespace-agnostic)
@@ -197,13 +202,25 @@ def _unwrap_container(raw: bytes) -> tuple[bytes, str]:
             ]
             if not preferred and not xml_members:
                 raise ValueError(
-                    "RDML ZIP archive contains no XML member; expected "
-                    "rdml_data.xml"
+                    "RDML ZIP archive contains no XML member; expected rdml_data.xml"
                 )
             member = preferred[0] if preferred else xml_members[0]
-            return archive.read(member), "zip"
+            info = archive.getinfo(member)
+            if info.file_size > _MAX_RDML_XML_BYTES:
+                raise ValueError("RDML XML exceeds the 64 MiB decompressed-size limit.")
+            with archive.open(info) as source:
+                xml = source.read(_MAX_RDML_XML_BYTES + 1)
+            if len(xml) > _MAX_RDML_XML_BYTES:
+                raise ValueError("RDML XML exceeds the 64 MiB decompressed-size limit.")
+            return xml, "zip"
     if raw[:2] == b"\x1f\x8b":
-        return gzip.decompress(raw), "gzip"
+        with gzip.GzipFile(fileobj=io.BytesIO(raw)) as source:
+            xml = source.read(_MAX_RDML_XML_BYTES + 1)
+        if len(xml) > _MAX_RDML_XML_BYTES:
+            raise ValueError("RDML XML exceeds the 64 MiB decompressed-size limit.")
+        return xml, "gzip"
+    if len(raw) > _MAX_RDML_XML_BYTES:
+        raise ValueError("RDML XML exceeds the 64 MiB size limit.")
     return raw, "xml"
 
 
@@ -277,8 +294,7 @@ def _parse_samples(
                     issues,
                     code="INVALID_SAMPLE_TYPE",
                     message=(
-                        "unknown sample type; expected one of "
-                        f"{sorted(_SAMPLE_TYPES)}"
+                        f"unknown sample type; expected one of {sorted(_SAMPLE_TYPES)}"
                     ),
                     location=f"sample '{sample_id}'",
                     value=type_text,
@@ -369,7 +385,16 @@ def _parse_targets(
             except ValueError:
                 factor = None
             low, high = _EFFICIENCY_FACTOR_RANGE
-            if factor is None or not math.isfinite(factor) or not low <= factor <= high:
+            if factor == -1.0:
+                # RDML uses -1.0 as the not-available sentinel for numeric
+                # analysis fields, including target-level efficiency in
+                # files produced by RDML-Tools.
+                efficiency = None
+            elif (
+                factor is None
+                or not math.isfinite(factor)
+                or not low <= factor <= high
+            ):
                 _add_issue(
                     issues,
                     code="INVALID_EFFICIENCY",
@@ -510,9 +535,7 @@ def _parse_analysis_outputs(
     n0 = _analysis_number(data_el, "N0", location=location, issues=issues)
     if n0 is None:
         # RDML 1.2 stored the initial copy number as copiesNum.
-        n0 = _analysis_number(
-            data_el, "copiesNum", location=location, issues=issues
-        )
+        n0 = _analysis_number(data_el, "copiesNum", location=location, issues=issues)
     corr_f = _analysis_number(data_el, "corrF", location=location, issues=issues)
     corr_p = _analysis_number(data_el, "corrP", location=location, issues=issues)
     if n0 is not None and (corr_f is not None or corr_p is not None):
@@ -520,17 +543,13 @@ def _parse_analysis_outputs(
 
     amp_factor = _analysis_number(data_el, "ampEff", location=location, issues=issues)
     if amp_factor is not None:
-        amp_eff: float | None = (
-            None if amp_factor <= 0 else amp_factor - 1.0
-        )
+        amp_eff: float | None = None if amp_factor <= 0 else amp_factor - 1.0
     else:
         # Per-well ampEff not reported: fall back to the declared per-target
         # efficiency rather than silently dropping the well's efficiency.
         amp_eff = target_efficiency
 
-    corrected_cq = _analysis_number(
-        data_el, "corrCq", location=location, issues=issues
-    )
+    corrected_cq = _analysis_number(data_el, "corrCq", location=location, issues=issues)
     return n0, amp_eff, corrected_cq
 
 
@@ -668,14 +687,10 @@ def read_rdml(
     )
 
     ref_set = {
-        str(target).strip()
-        for target in reference_targets or []
-        if str(target).strip()
+        str(target).strip() for target in reference_targets or [] if str(target).strip()
     }
     ref_set.update(
-        target_id
-        for target_id, info in target_infos.items()
-        if info["is_reference"]
+        target_id for target_id, info in target_infos.items() if info["is_reference"]
     )
     for target in sorted(ref_set - set(target_infos)):
         _add_issue(
@@ -856,8 +871,11 @@ def read_rdml(
                 ReplicateType.TECHNICAL
                 if any(
                     pair_counts[(sample_id, target)] > 1
-                    for target in {well.target_name for well in resolved_wells
-                                   if well.sample_name == sample_id}
+                    for target in {
+                        well.target_name
+                        for well in resolved_wells
+                        if well.sample_name == sample_id
+                    }
                 )
                 else ReplicateType.SINGLE
             ),

@@ -18,6 +18,11 @@ QMainWindow, QDialog, #ContentArea {
     background: #faf9f5;
 }
 
+#ControlScroll, #ControlScrollViewport, #ControlPane {
+    background: #faf9f5;
+    border: none;
+}
+
 QToolTip {
     background: #1b1b19;
     color: #faf9f5;
@@ -164,6 +169,12 @@ QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus {
 QLineEdit:read-only {
     color: #908e84;
     background: #f5f4ee;
+}
+
+QLineEdit[dragActive="true"] {
+    color: #b05730;
+    background: #f8e3d8;
+    border: 2px solid #d97757;
 }
 
 QComboBox::drop-down {

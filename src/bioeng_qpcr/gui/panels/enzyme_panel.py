@@ -21,6 +21,7 @@ from PySide6.QtWidgets import QPushButton, QWidget
 from bioeng_qpcr.enzyme_kinetics import (
     InhibitionType,
     classify_inhibition,
+    compare_inhibition_models,
     fit_michaelis_menten,
     read_kinetics_csv,
     validate_km_range,
@@ -30,6 +31,7 @@ from bioeng_qpcr.gui.components.base_panel import BasePanel, Card
 from bioeng_qpcr.gui.components.file_selector import FileSelector
 from bioeng_qpcr.gui.components.plot_canvas import PlotCanvas
 from bioeng_qpcr.plotting import plot_lineweaver_burk, plot_michaelis_menten
+from bioeng_qpcr.plotting.enzyme_kinetics import plot_global_inhibition
 
 #: Human-readable Chinese labels for each inhibition mechanism.
 _INHIBITION_LABELS: dict[InhibitionType, str] = {
@@ -81,11 +83,22 @@ class EnzymePanel(BasePanel):
         self._btn_fit_mm.clicked.connect(self._on_fit_michaelis_menten)
         action_card.addWidget(self._btn_fit_mm)
 
-        self._btn_classify = QPushButton("抑制类型判别")
+        self._btn_global = QPushButton("全局拟合与模型比较")
+        self._btn_global.setObjectName("PrimaryButton")
+        self._btn_global.clicked.connect(self._on_global_inhibition)
+        action_card.addWidget(self._btn_global)
+
+        self._btn_classify = QPushButton("参数趋势判别（辅助）")
         self._btn_classify.setObjectName("SecondaryButton")
         self._btn_classify.setCursor(Qt.CursorShape.PointingHandCursor)
         self._btn_classify.clicked.connect(self._on_classify_inhibition)
         action_card.addWidget(self._btn_classify)
+
+        self._btn_cancel = QPushButton("取消当前任务")
+        self._btn_cancel.setEnabled(False)
+        self._btn_cancel.setToolTip("当前模型比较结束后停止，结果不会写入界面")
+        self._btn_cancel.clicked.connect(self._cancel_background_task)
+        action_card.addWidget(self._btn_cancel)
 
         self._controls_layout.addWidget(action_card)
         self._controls_layout.addStretch()
@@ -148,15 +161,24 @@ class EnzymePanel(BasePanel):
             # control ([I] == 0); otherwise fit the whole series.
             note = ""
             if inhibitor is not None:
-                control_mask = np.isclose(inhibitor, 0.0)
+                control_mask = inhibitor == 0.0
                 if control_mask.any():
                     s_fit = substrate[control_mask]
                     v_fit = velocity[control_mask]
                     note = "使用对照组 ([I] = 0) 数据进行拟合。"
                 else:
+                    if np.unique(inhibitor).size > 1:
+                        raise ValueError(
+                            "存在多个抑制剂浓度但缺少 [I] = 0 对照，"
+                            "不能混合拟合一条曲线。"
+                            "请按抑制剂浓度分别导入，并补充 [I] = 0 对照。"
+                        )
                     s_fit = substrate
                     v_fit = velocity
-                    note = "未检测到 [I] = 0 的对照组，使用全部数据进行拟合。"
+                    note = (
+                        f"仅拟合 [I] = {float(inhibitor[0]):g} 组的表观参数，"
+                        "不代表无抑制剂的 Km / Vmax。"
+                    )
             else:
                 s_fit = substrate
                 v_fit = velocity
@@ -171,12 +193,8 @@ class EnzymePanel(BasePanel):
             lines.append("Michaelis-Menten 拟合结果")
             lines.append("=" * 42)
             lines.append(f"数据点数: {result.n_points}")
-            lines.append(
-                f"Vmax = {result.vmax:.4g}{self._format_ci(result.vmax_ci)}"
-            )
-            lines.append(
-                f"Km   = {result.km:.4g}{self._format_ci(result.km_ci)}"
-            )
+            lines.append(f"Vmax = {result.vmax:.4g}{self._format_ci(result.vmax_ci)}")
+            lines.append(f"Km   = {result.km:.4g}{self._format_ci(result.km_ci)}")
             r_squared = (
                 f"{result.r_squared:.4f}"
                 if result.r_squared is not None
@@ -193,9 +211,7 @@ class EnzymePanel(BasePanel):
             km_status = "通过" if km_check.passed else "未通过"
             lines.append(f"ENZ-001 (Km 范围): {km_status} — {km_check.message}")
             span_status = "通过" if span_check.passed else "未通过"
-            lines.append(
-                f"ENZ-002 (底物跨度): {span_status} — {span_check.message}"
-            )
+            lines.append(f"ENZ-002 (底物跨度): {span_status} — {span_check.message}")
 
             self._result_display.set_text("\n".join(lines))
 
@@ -225,8 +241,7 @@ class EnzymePanel(BasePanel):
 
         if inhibitor is None:
             self._show_error(
-                "CSV 文件缺少 inhibitor_concentration 列，"
-                "无法进行抑制类型判别。"
+                "CSV 文件缺少 inhibitor_concentration 列，无法进行抑制类型判别。"
             )
             return
 
@@ -243,9 +258,7 @@ class EnzymePanel(BasePanel):
             datasets: list[tuple[float, np.ndarray, np.ndarray]] = []
             for conc in unique_concs:
                 mask = inhibitor == conc
-                datasets.append(
-                    (float(conc), substrate[mask], velocity[mask])
-                )
+                datasets.append((float(conc), substrate[mask], velocity[mask]))
 
             result = classify_inhibition(datasets)
 
@@ -268,9 +281,7 @@ class EnzymePanel(BasePanel):
             for ds in result.datasets:
                 mm = ds.mm_result
                 r_squared = (
-                    f"{mm.r_squared:.4f}"
-                    if mm.r_squared is not None
-                    else "未定义"
+                    f"{mm.r_squared:.4f}" if mm.r_squared is not None else "未定义"
                 )
                 lines.append(
                     f"[I] = {ds.inhibitor_concentration:g}:  "
@@ -288,3 +299,73 @@ class EnzymePanel(BasePanel):
             self._emit_status(f"抑制判别完成: {label}。")
         except Exception as exc:
             self._show_error(f"抑制判别失败: {exc}")
+
+    def _on_global_inhibition(self) -> None:
+        path = self._get_csv_path()
+        if path is None:
+            return
+
+        def operation(token):
+            substrate, velocity, inhibitor = read_kinetics_csv(path)
+            if inhibitor is None:
+                raise ValueError("需要 inhibitor_concentration 列")
+            datasets = [
+                (float(c), substrate[inhibitor == c], velocity[inhibitor == c])
+                for c in np.unique(inhibitor)
+            ]
+            token.raise_if_cancelled()
+            result = compare_inhibition_models(datasets)
+            token.raise_if_cancelled()
+            return result, datasets
+
+        self._start_background_task(
+            operation,
+            self._complete_global_inhibition,
+            busy_widgets=(
+                self._file_selector,
+                self._btn_fit_mm,
+                self._btn_classify,
+                self._btn_global,
+            ),
+            cancel_widget=self._btn_cancel,
+            status="正在进行全局抑制模型比较…",
+            error_prefix="全局拟合失败",
+        )
+
+    def _complete_global_inhibition(self, payload) -> None:
+        result, datasets = payload
+        best = result.best_fit
+        ambiguous = (
+            result.models[1].delta_aicc < 2
+            or best.akaike_weight < 0.7
+            or any(not m.converged or not np.isfinite(m.aicc) for m in result.models)
+        )
+        lines = [
+            "全局抑制模型比较",
+            "=" * 60,
+            "机制未决：候选模型证据接近，请补充数据。"
+            if ambiguous
+            else "当前数据支持的候选机制：" + _INHIBITION_LABELS[result.best_type],
+            "Akaike 权重表示候选模型间相对支持，不是机制正确的概率。",
+            "模型          AICc       ΔAICc      BIC       权重    收敛",
+        ]
+        for fit in result.models:
+            lines.append(
+                f"{fit.inhibition_type.value:16} {fit.aicc:9.3g} "
+                f"{fit.delta_aicc:9.3g} {fit.bic:9.3g} "
+                f"{fit.akaike_weight:7.3f} {fit.converged}"
+            )
+        lines.extend(["", "最优候选参数（标准误不等于置信区间）"])
+        for name, value in best.parameters.items():
+            error = best.parameter_std[name]
+            lines.append(
+                f"{name} = {value:.6g}; SE = "
+                + (f"{error:.4g}" if np.isfinite(error) else "不可估计")
+            )
+        if not any(c == 0 for c, _, _ in datasets):
+            lines.append("[警告] 缺少 [I] = 0 对照，基础参数解释需额外审阅。")
+        lines.extend(["", result.message])
+        self._result_display.set_text("\n".join(lines))
+        figure, _ = plot_global_inhibition(best, datasets)
+        self._render_figure(figure)
+        self._emit_status("全局模型比较完成；请审阅参数、残差与模型证据")

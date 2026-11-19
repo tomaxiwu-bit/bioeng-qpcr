@@ -1,0 +1,125 @@
+{
+  "provenance": {
+    "input_hash": null,
+    "raw_input_hash": null,
+    "parameters": {
+      "model": "4PL",
+      "minimum_concentrations": 8,
+      "exclude_flagged_outlier_wells": true,
+      "source_sha256": {
+        "ct1.csv": "d3dcd92d2991126cf5442f894a971477da75a7b07ed42659924700839ffebbf0",
+        "large_DNA_dilutions.rdml": "2529de8272eb75c7579239d7735aa1251383118988e6fa4a7c7ef69fb97ef53d",
+        "inhibition.tsv": "19e537166a17a42dd50cc262dd6eb0a963c181830fdc52db0fba98533e01c9c6",
+        "inhibition_wells.tsv": "531a3dc8d175a9bf0be69cc8594ad310cd64e0997ed4fcd0da2067057737175c"
+      }
+    },
+    "package_versions": {
+      "bioeng_qpcr": "0.6.7",
+      "numpy": "2.5.1",
+      "scipy": "1.18.0",
+      "pandas": "2.3.3",
+      "matplotlib": "3.11.1",
+      "cobra": "0.31.1",
+      "optlang": "1.9.1",
+      "swiglpk": "5.0.13",
+      "openpyxl": "3.1.5"
+    },
+    "ruleset_versions": {},
+    "exclusions": [],
+    "created_at": "2026-11-08T15:10:35.954047+00:00",
+    "runtime": {
+      "python": "3.12.13",
+      "platform": "win32",
+      "build": null
+    }
+  },
+  "sources": {
+    "ct1.csv": {
+      "url": "https://raw.githubusercontent.com/cran/pcr/6510657abfc6c92a4bb44ad3e131d10acb6ae6ec/inst/extdata/ct1.csv",
+      "sha256": "d3dcd92d2991126cf5442f894a971477da75a7b07ed42659924700839ffebbf0"
+    },
+    "large_DNA_dilutions.rdml": {
+      "url": "https://raw.githubusercontent.com/RDML-consortium/rdmlpython/fce7a44e8b47b90759c646b557de568f7af77e75/experiments/untergasser/large_DNA_dilutions.rdml",
+      "sha256": "2529de8272eb75c7579239d7735aa1251383118988e6fa4a7c7ef69fb97ef53d"
+    },
+    "inhibition.tsv": {
+      "url": "https://raw.githubusercontent.com/OpenADMET/Octant_CYP_blog_post/58b3d6a63d25b18bee0b68af07cf1a5b30e6cf0d/data/inhibition.tsv",
+      "sha256": "19e537166a17a42dd50cc262dd6eb0a963c181830fdc52db0fba98533e01c9c6",
+      "windows_crlf_sha256": "c028684ad293c062f06a4f0f7fd051e4f831e12d1cc72ab20cfb14916d33968a"
+    },
+    "inhibition_wells.tsv": {
+      "url": "https://raw.githubusercontent.com/OpenADMET/Octant_CYP_blog_post/58b3d6a63d25b18bee0b68af07cf1a5b30e6cf0d/data/inhibition_wells.tsv",
+      "sha256": "531a3dc8d175a9bf0be69cc8594ad310cd64e0997ed4fcd0da2067057737175c",
+      "windows_crlf_sha256": "c9a2390be19c2418923ec0c8fb9b655b23d5130dfea9be10ce1442d95c7cdd50"
+    }
+  },
+  "actual_input_sha256": {
+    "ct1": "d3dcd92d2991126cf5442f894a971477da75a7b07ed42659924700839ffebbf0",
+    "rdml": "2529de8272eb75c7579239d7735aa1251383118988e6fa4a7c7ef69fb97ef53d",
+    "inhibition": "19e537166a17a42dd50cc262dd6eb0a963c181830fdc52db0fba98533e01c9c6",
+    "wells": "531a3dc8d175a9bf0be69cc8594ad310cd64e0997ed4fcd0da2067057737175c"
+  },
+  "qpcr": {
+    "dataset": "CRAN pcr ct1 / Livak human brain-kidney example",
+    "n_observations": 12,
+    "delta_delta_cq": -2.495000000000001,
+    "fold_change": 5.6372830205680815,
+    "expected_fold_change": 5.6372830205680815,
+    "absolute_error": 0.0,
+    "passed": true
+  },
+  "rdml": {
+    "dataset": "RDML Consortium Untergasser large DNA dilutions",
+    "expected": {
+      "rdml_version": "1.4",
+      "n_wells": 294,
+      "n_samples": 29,
+      "n_assays": 6,
+      "n_runs": 1,
+      "n_traces": 294
+    },
+    "observed": {
+      "rdml_version": "1.4",
+      "n_wells": 294,
+      "n_samples": 29,
+      "n_assays": 6,
+      "n_runs": 1,
+      "n_traces": 294
+    },
+    "trace_points": 14700,
+    "passed": true
+  },
+  "potency": {
+    "dataset": "OpenADMET/Octant CYP3A4 inhibition",
+    "eligible_curves": 509,
+    "design_excluded": 1,
+    "evaluated_curves": 508,
+    "successful_fits": 508,
+    "fit_success_rate": 1.0,
+    "mae_pIC50": 0.09307704052344701,
+    "rmse_pIC50": 0.15909682545197595,
+    "median_absolute_error_pIC50": 0.07379500171454234,
+    "p90_absolute_error_pIC50": 0.17373978840971668,
+    "pearson_r": 0.9427890703529174,
+    "spearman_rho": 0.9636356879344697,
+    "mean_bias_pIC50": 0.020423960633025803,
+    "bland_altman_lower": -0.28913049699490223,
+    "bland_altman_upper": 0.32997841826095387,
+    "median_r_squared": 0.9795472451289051,
+    "reference_ci_hit_rate": 0.25984251968503935,
+    "bioeng_qpcr_ci_available_rate": 0.9330708661417323,
+    "release_gates": {
+      "fit_success_rate_at_least_0.99": true,
+      "mae_pIC50_at_most_0.15": true,
+      "pearson_r_at_least_0.90": true,
+      "median_r_squared_at_least_0.95": true
+    },
+    "passed": true
+  },
+  "passed": true,
+  "figures": [
+    "openadmet_pic50_agreement.svg",
+    "openadmet_pic50_bland_altman.svg",
+    "openadmet_pic50_error_distribution.svg"
+  ]
+}

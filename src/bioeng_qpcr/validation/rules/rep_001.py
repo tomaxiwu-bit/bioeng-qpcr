@@ -18,7 +18,7 @@ METADATA = RuleMetadata(
     description="Check within-group technical-replicate Cq spread",
     miqe_section="MIQE 2.0: replicates and precision",
     min_input_level=InputLevel.LEVEL_A,
-    version="1.0.0",
+    version="1.1.0",
 )
 
 
@@ -41,32 +41,40 @@ def check_technical_replicates(experiment: Experiment) -> RuleResult:
                 "failing_groups": [],
             },
         )
-    groups: dict[tuple[str, str, str], list[float]] = defaultdict(list)
+    groups: dict[tuple[str, str, str], list[float | None]] = defaultdict(list)
     for well in experiment.wells:
-        if well.replicate_type is ReplicateType.TECHNICAL and well.cq is not None:
+        if well.replicate_type is ReplicateType.TECHNICAL:
             key = (
                 well.sample_name,
                 well.target_name,
                 well.replicate_group or "ungrouped",
             )
-            groups[key].append(float(well.cq))
-    assessed = {key: values for key, values in groups.items() if len(values) >= 2}
+            groups[key].append(well.cq)
     evidence_groups: dict[str, object] = {}
     failing: list[str] = []
-    for key, values in sorted(assessed.items()):
+    incomplete: list[str] = []
+    assessed = 0
+    for key, cqs in sorted(groups.items()):
+        values = [float(cq) for cq in cqs if cq is not None]
         label = "/".join(key)
-        spread = max(values) - min(values)
+        spread = max(values) - min(values) if len(values) >= 2 else None
+        assessed += spread is not None
         evidence_groups[label] = {
             "n": len(values),
-            "mean_cq": float(np.mean(values)),
+            "n_total": len(cqs),
+            "n_undetermined": len(cqs) - len(values),
+            "mean_cq": float(np.mean(values)) if values else None,
             "delta_cq": spread,
         }
-        if spread > threshold:
+        if len(values) != len(cqs):
+            incomplete.append(label)
+        if spread is not None and spread > threshold:
             failing.append(label)
     evidence = {
         "threshold_delta_cq": threshold,
         "groups": evidence_groups,
         "failing_groups": failing,
+        "incomplete_groups": incomplete,
     }
     if not assessed:
         return RuleResult(
@@ -85,11 +93,19 @@ def check_technical_replicates(experiment: Experiment) -> RuleResult:
             ),
             evidence=evidence,
         )
+    if incomplete:
+        return RuleResult(
+            metadata=METADATA,
+            status=RuleStatus.WARN,
+            message=f"{len(incomplete)} technical replicate group(s) contain "
+            "undetermined Cq values; incomplete replicates require review",
+            evidence=evidence,
+        )
     return RuleResult(
         metadata=METADATA,
         status=RuleStatus.PASS,
         message=(
-            f"All {len(assessed)} technical replicate group(s) agree within threshold"
+            f"All {assessed} technical replicate group(s) agree within threshold"
         ),
         evidence=evidence,
     )

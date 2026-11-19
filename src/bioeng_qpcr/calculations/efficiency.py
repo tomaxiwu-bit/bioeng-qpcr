@@ -62,6 +62,165 @@ class EfficiencyResult:
     slope_se: float | None = None
     slope_ci: tuple[float, float] | None = None
     efficiency_ci: tuple[float, float] | None = None
+    residual_standard_error: float | None = None
+    mean_log_concentration: float | None = None
+    sxx: float | None = None
+
+    def predict_cq_interval(
+        self,
+        log_concentration: float,
+        *,
+        confidence: float = 0.95,
+    ) -> tuple[float, float, float]:
+        """Return fitted Cq and a two-sided prediction interval.
+
+        The interval covers a future Cq observation at the supplied
+        log10(concentration), including both regression and residual
+        uncertainty. It is available only for standard-curve fits.
+        """
+        if not 0.0 < confidence < 1.0:
+            raise ValueError("confidence must be between 0 and 1.")
+        if not np.isfinite(log_concentration):
+            raise ValueError("log_concentration must be finite.")
+        if (
+            self.residual_standard_error is None
+            or self.mean_log_concentration is None
+            or self.sxx is None
+            or self.sxx <= 0.0
+            or self.n_points <= 2
+        ):
+            raise ValueError("Prediction intervals require a standard-curve fit.")
+
+        estimate = self.slope * float(log_concentration) + self.intercept
+        prediction_se = self.residual_standard_error * np.sqrt(
+            1.0
+            + 1.0 / self.n_points
+            + (float(log_concentration) - self.mean_log_concentration) ** 2
+            / self.sxx
+        )
+        critical = float(
+            student_t.ppf(0.5 + confidence / 2.0, self.n_points - 2)
+        )
+        margin = critical * float(prediction_se)
+        return float(estimate), float(estimate - margin), float(estimate + margin)
+
+
+@dataclass(frozen=True)
+class CalibrationLevel:
+    """Detection and precision evidence for one standard concentration."""
+
+    concentration: float
+    n_total: int
+    n_detected: int
+    detection_rate: float
+    mean_cq: float | None
+    cq_sd: float | None
+    lod_qualified: bool
+    quantification_qualified: bool
+
+
+@dataclass(frozen=True)
+class StandardCurveRange:
+    """Empirical LOD and quantifiable range from replicated standards."""
+
+    levels: tuple[CalibrationLevel, ...]
+    lod: float | None
+    lloq: float | None
+    uloq: float | None
+    dynamic_range_log10: float | None
+    min_detection_rate: float
+    max_cq_sd: float
+    min_replicates: int
+    warnings: tuple[str, ...]
+
+
+def assess_standard_curve_range(
+    concentrations: np.ndarray,
+    cq_values: np.ndarray,
+    *,
+    min_detection_rate: float = 0.95,
+    max_cq_sd: float = 0.5,
+    min_replicates: int = 3,
+) -> StandardCurveRange:
+    """Estimate empirical LOD/LLOQ/ULOQ from replicated standards.
+
+    Missing/non-finite Cq values count as non-detections. LOD is the lowest
+    concentration meeting the replicate-count and detection-rate criteria;
+    LLOQ additionally requires the detected Cq standard deviation to be no
+    greater than ``max_cq_sd``. These operational thresholds must be reported
+    with the result and should be set from the laboratory's validated SOP.
+    """
+    concentrations = np.asarray(concentrations, dtype=float)
+    cq_values = np.asarray(cq_values, dtype=float)
+    if concentrations.shape != cq_values.shape or concentrations.ndim != 1:
+        raise ValueError("concentrations and cq_values must be same-length 1D arrays.")
+    if concentrations.size == 0:
+        raise ValueError("At least one standard-curve observation is required.")
+    if not np.all(np.isfinite(concentrations)) or np.any(concentrations <= 0):
+        raise ValueError("Standard concentrations must be finite and positive.")
+    if not 0.0 < min_detection_rate <= 1.0:
+        raise ValueError("min_detection_rate must be in (0, 1].")
+    if not np.isfinite(max_cq_sd) or max_cq_sd < 0.0:
+        raise ValueError("max_cq_sd must be finite and non-negative.")
+    if min_replicates < 2:
+        raise ValueError("min_replicates must be at least 2.")
+
+    levels: list[CalibrationLevel] = []
+    for concentration in sorted(np.unique(concentrations)):
+        values = cq_values[concentrations == concentration]
+        detected = values[np.isfinite(values)]
+        n_total = int(values.size)
+        n_detected = int(detected.size)
+        rate = n_detected / n_total
+        mean_cq = float(np.mean(detected)) if n_detected else None
+        cq_sd = float(np.std(detected, ddof=1)) if n_detected >= 2 else None
+        lod_ok = n_total >= min_replicates and rate >= min_detection_rate
+        quant_ok = lod_ok and cq_sd is not None and cq_sd <= max_cq_sd
+        levels.append(
+            CalibrationLevel(
+                concentration=float(concentration),
+                n_total=n_total,
+                n_detected=n_detected,
+                detection_rate=rate,
+                mean_cq=mean_cq,
+                cq_sd=cq_sd,
+                lod_qualified=lod_ok,
+                quantification_qualified=quant_ok,
+            )
+        )
+
+    lod_levels = [level.concentration for level in levels if level.lod_qualified]
+    quant_levels = [
+        level.concentration for level in levels if level.quantification_qualified
+    ]
+    lod = min(lod_levels) if lod_levels else None
+    lloq = min(quant_levels) if quant_levels else None
+    uloq = max(quant_levels) if quant_levels else None
+    dynamic_range = (
+        float(np.log10(uloq / lloq))
+        if lloq is not None and uloq is not None
+        else None
+    )
+    warnings: list[str] = []
+    if lod is None:
+        warnings.append("No tested concentration met the empirical LOD criteria.")
+    if lloq is None:
+        warnings.append("No tested concentration met the quantification criteria.")
+    elif len(quant_levels) < 3:
+        warnings.append(
+            "Fewer than three concentration levels define the quantifiable range."
+        )
+    return StandardCurveRange(
+        levels=tuple(levels),
+        lod=lod,
+        lloq=lloq,
+        uloq=uloq,
+        dynamic_range_log10=dynamic_range,
+        min_detection_rate=min_detection_rate,
+        max_cq_sd=max_cq_sd,
+        min_replicates=min_replicates,
+        warnings=tuple(warnings),
+    )
 
 
 def _efficiency_from_slope(slope: float) -> float:
@@ -192,11 +351,13 @@ def fit_efficiency_from_standard_curve(
     slope_se: float | None = None
     slope_ci: tuple[float, float] | None = None
     efficiency_ci: tuple[float, float] | None = None
+    residual_standard_error: float | None = None
     degrees_freedom = int(log_concentrations.size - 2)
     centered = log_concentrations - float(np.mean(log_concentrations))
     sxx = float(np.sum(centered**2))
     if degrees_freedom > 0 and sxx > 0:
         residual_variance = ss_res / degrees_freedom
+        residual_standard_error = float(np.sqrt(max(residual_variance, 0.0)))
         slope_se = float(np.sqrt(max(residual_variance, 0.0) / sxx))
         t_critical = float(student_t.ppf(0.975, degrees_freedom))
         slope_ci = (
@@ -219,6 +380,9 @@ def fit_efficiency_from_standard_curve(
         slope_se=slope_se,
         slope_ci=slope_ci,
         efficiency_ci=efficiency_ci,
+        residual_standard_error=residual_standard_error,
+        mean_log_concentration=float(np.mean(log_concentrations)),
+        sxx=sxx,
     )
 
 

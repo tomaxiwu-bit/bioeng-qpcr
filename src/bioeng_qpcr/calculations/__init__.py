@@ -46,7 +46,10 @@ from bioeng_qpcr.calculations.delta_delta_cq import (
     delta_delta_cq_batch,
 )
 from bioeng_qpcr.calculations.efficiency import (
+    CalibrationLevel,
     EfficiencyResult,
+    StandardCurveRange,
+    assess_standard_curve_range,
     fit_efficiency_from_standard_curve,
     fit_efficiency_from_trace,
     fit_logistic_trace_shape,
@@ -87,6 +90,8 @@ __all__ = [
     "DeltaDeltaCqResult",
     # Efficiency
     "EfficiencyResult",
+    "CalibrationLevel",
+    "StandardCurveRange",
     "GroupComparisonResult",
     # Efficiency-corrected normalized quantities
     "NormalizedQuantityResult",
@@ -114,5 +119,6 @@ __all__ = [
     "pfaffl_batch",
     "analyze_amplification_curves",
     "apply_assay_efficiency",
+    "assess_standard_curve_range",
     "baseline_correct",
 ]

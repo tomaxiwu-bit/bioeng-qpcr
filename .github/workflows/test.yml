@@ -3,6 +3,16 @@ name: tests
 on:
   push:
   pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * 1"
+
+permissions:
+  contents: read
+
+env:
+  QT_QPA_PLATFORM: offscreen
+  MPLBACKEND: Agg
 
 jobs:
   test:
@@ -20,8 +30,36 @@ jobs:
           cache: pip
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e ".[dev]"
+      - name: Install headless Qt runtime libraries
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libopengl0
       - run: ruff check .
-      - run: python -m pytest --cov=bioeng_qpcr --cov-branch
+      - run: python -m pytest --cov=bioeng_qpcr --cov-branch --junitxml=test-results.xml
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() }}
+        with:
+          name: tests-python-${{ matrix.python-version }}
+          path: test-results.xml
+      - if: ${{ matrix.python-version == '3.12' }}
+        run: python scripts/verify_examples.py
+
+  locked-environment:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install uv==0.11.16
+      - run: uv sync --locked --extra dev
+      - name: Install headless Qt runtime libraries
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libopengl0
+      - run: uv run --locked --extra dev ruff check .
+      - run: uv run --locked --extra dev python -m pytest --junitxml=test-results.xml
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() }}
+        with:
+          name: tests-locked-python-3.12
+          path: test-results.xml
 
   package-windows:
     runs-on: windows-latest
@@ -32,17 +70,88 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - run: python -m pip install --upgrade pip
-      - run: python -m pip install -e ".[desktop-build]"
-      - run: python -m PyInstaller --clean --noconfirm bioeng-qpcr.spec
-      - name: Smoke-test packaged GUI imports
+      - run: python -m pip install uv==0.11.16
+      - run: uv sync --locked --extra dev --extra desktop-build
+      - run: uv run --locked --extra desktop-build python scripts/download_release_sources.py
+      - run: uv run --locked --extra desktop-build python -m PyInstaller --clean --noconfirm bioeng-qpcr.spec
+      - name: Verify and build portable archive
         shell: pwsh
+        run: ./scripts/build_portable.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-portable
+          path: dist-release/*.zip*
+
+  package-python:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install --upgrade build pip
+      - run: python -m build
+      - name: Verify release contents
         run: |
-          $process = Start-Process `
-            -FilePath "dist\bioeng-qpcr\bioeng-qpcr.exe" `
-            -ArgumentList "--smoke-test" `
-            -Wait `
-            -PassThru
-          if ($process.ExitCode -ne 0) {
-            throw "Packaged GUI smoke test failed with exit code $($process.ExitCode)"
-          }
+          python - <<'PY'
+          import glob, tarfile, zipfile
+
+          wheel = glob.glob("dist/*.whl")[0]
+          with zipfile.ZipFile(wheel) as archive:
+              names = set(archive.namelist())
+              assert "bioeng_qpcr/web/templates/workspace.html" in names
+              assert "bioeng_qpcr/web/templates/qpcr_workbench.html" in names
+              assert "bioeng_qpcr/web/examples/qpcr_workbench/relative-ct.json" in names
+              assert "bioeng_qpcr/web/examples/qpcr_workbench/rdml-dilution.json" in names
+              assert "bioeng_qpcr/web/examples/qpcr_workbench/PCR-DATA-GPL-3.0.txt" in names
+              assert "bioeng_qpcr/web/examples/dose_response_example.csv" in names
+          sdist = glob.glob("dist/*.tar.gz")[0]
+          with tarfile.open(sdist) as archive:
+              names = archive.getnames()
+              assert any(name.endswith("/scripts/verify_examples.py") for name in names)
+              assert any(name.endswith("/scripts/validate_public_data.py") for name in names)
+              assert any(name.endswith("/uv.lock") for name in names)
+              assert any(name.endswith("/packaging/third-party-sources.json") for name in names)
+          PY
+      - name: Smoke-test installed wheel outside the checkout
+        run: |
+          python -m venv /tmp/bioeng-wheel
+          /tmp/bioeng-wheel/bin/pip install dist/*.whl flask matplotlib
+          cd /tmp
+          /tmp/bioeng-wheel/bin/python - <<'PY'
+          from bioeng_qpcr.web.app import create_app
+
+          client = create_app().test_client()
+          assert client.get("/workspace").status_code == 200
+          assert client.get("/workbench").status_code == 200
+          catalog = client.get("/api/qpcr/templates").get_json()
+          assert len(catalog["experiments"]) == 5
+          assert len(catalog["themes"]) == 6
+          assert client.get("/api/workspace/examples/potency").status_code == 200
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-packages
+          path: |
+            dist/*.whl
+            dist/*.tar.gz
+
+  public-data:
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install -e ".[plot]"
+      - run: python scripts/validate_public_data.py
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() }}
+        with:
+          name: public-data-validation
+          path: .validation-results/

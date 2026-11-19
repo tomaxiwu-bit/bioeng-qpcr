@@ -1,0 +1,73 @@
+[
+  {
+    "filename": "pyside-setup-everywhere-src-6.11.1.tar.xz",
+    "distribution": "PySide6",
+    "version": "6.11.1",
+    "url": "https://download.qt.io/official_releases/QtForPython/pyside6/PySide6-6.11.1-src/pyside-setup-everywhere-src-6.11.1.tar.xz",
+    "sha256": "6ffd9835bb0dd2c56f061d62f1616bb1707cfc0202b80e3165d6be087f3965e2"
+  },
+  {
+    "filename": "qtbase-everywhere-src-6.11.1.tar.xz",
+    "version": "6.11.1",
+    "url": "https://download.qt.io/official_releases/qt/6.11/6.11.1/submodules/qtbase-everywhere-src-6.11.1.tar.xz",
+    "sha256": "d9594a31228aa23ad6b531719a29b45f0f3989fe6c136d45767ea179f233c1ac"
+  },
+  {
+    "filename": "qtsvg-everywhere-src-6.11.1.tar.xz",
+    "version": "6.11.1",
+    "url": "https://download.qt.io/official_releases/qt/6.11/6.11.1/submodules/qtsvg-everywhere-src-6.11.1.tar.xz",
+    "sha256": "7f3cf02f4824bf03c2c5859ea6db173bf1482a1daf24e6cdf7bc78cfa26a8a94"
+  },
+  {
+    "filename": "qtimageformats-everywhere-src-6.11.1.tar.xz",
+    "version": "6.11.1",
+    "url": "https://download.qt.io/official_releases/qt/6.11/6.11.1/submodules/qtimageformats-everywhere-src-6.11.1.tar.xz",
+    "sha256": "b2bf6c6845ac175ed7f819145483ba4676f617aaa6a5012c8efee63c8bbac413"
+  },
+  {
+    "filename": "qttranslations-everywhere-src-6.11.1.tar.xz",
+    "version": "6.11.1",
+    "url": "https://download.qt.io/official_releases/qt/6.11/6.11.1/submodules/qttranslations-everywhere-src-6.11.1.tar.xz",
+    "sha256": "37c02c81206594c7bb4edca85ac93e8e55a9836b70c960fde6cb0f8623ec5677"
+  },
+  {
+    "filename": "cobra-0.31.1.tar.gz",
+    "distribution": "cobra",
+    "version": "0.31.1",
+    "url": "https://files.pythonhosted.org/packages/cb/86/7cd457e9346fe08960f93b8aeed20a2a4801dbfb941722c3b32147beba1c/cobra-0.31.1.tar.gz",
+    "sha256": "7179926f79de8ebc99cc168c3b9ab4a7ba84098bf2436b095d9b5865e2f046f3"
+  },
+  {
+    "filename": "python_libsbml-5.21.1.tar.gz",
+    "distribution": "python-libsbml",
+    "version": "5.21.1",
+    "url": "https://files.pythonhosted.org/packages/c0/ba/4009c3ef2b0778a5581f1e0bd0679674728e111235e1e89e4f02278ca210/python_libsbml-5.21.1.tar.gz",
+    "sha256": "378077e37a1b5cd32d8c33bf845b23c22b7a6915d217d7ab811e71e022f982ea"
+  },
+  {
+    "filename": "swiglpk-5.0.13.tar.gz",
+    "distribution": "swiglpk",
+    "version": "5.0.13",
+    "url": "https://files.pythonhosted.org/packages/2e/4b/9bd62c4637bf6bc613b31d1f4d2cf797c98d231c214c55eb7b2b48af1f5f/swiglpk-5.0.13.tar.gz",
+    "sha256": "23050101f01ae1de162a68943e49f139dd586eed327324fece57647ec0c52212"
+  },
+  {
+    "filename": "certifi-2026.7.22.tar.gz",
+    "distribution": "certifi",
+    "version": "2026.7.22",
+    "url": "https://files.pythonhosted.org/packages/a3/c2/24167ea9858356b47a87a50d39908bfdb72ceeefe0041586e704e5376b3a/certifi-2026.7.22.tar.gz",
+    "sha256": "741e2c3b351ddf169a738da9f2c048608ff7f2c5cc02f1ebc6b118bb090d5d55"
+  },
+  {
+    "filename": "glpk-5.0.tar.gz",
+    "version": "5.0",
+    "url": "https://ftp.gnu.org/gnu/glpk/glpk-5.0.tar.gz",
+    "sha256": "4a1013eebb50f728fc601bdd833b0b2870333c3b3e5a816eeba921d95bec6f15"
+  },
+  {
+    "filename": "NormqPCR_1.58.0.tar.gz",
+    "version": "1.58.0",
+    "url": "https://bioconductor.posit.co/packages/3.23/bioc/src/contrib/NormqPCR_1.58.0.tar.gz",
+    "sha256": "f556aab9ae67d7d02deda192df6d1adf65520b0c9125797582a5b74839864a35"
+  }
+]

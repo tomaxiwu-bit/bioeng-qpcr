@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from dataclasses import replace
 
 import pytest
 
@@ -11,7 +12,8 @@ from bioeng_qpcr.calculations import (
     normalized_quantity,
     normalized_quantity_all,
 )
-from bioeng_qpcr.domain import Assay, Experiment, Sample, Well
+from bioeng_qpcr.domain import Assay, Experiment, ReplicateType, Sample, Well
+from bioeng_qpcr.reference_genes._matrix import build_reference_matrix
 
 
 def _experiment(*, incomplete: bool = False) -> Experiment:
@@ -92,3 +94,36 @@ def test_efficiency_is_required() -> None:
     experiment.assays["GOI"] = Assay(name="GOI", efficiency=None)
     with pytest.raises(ValueError, match="Measured amplification efficiency"):
         normalized_quantity(experiment, "C1", "GOI")
+
+
+@pytest.mark.parametrize("target", ["GOI", "GAPDH"])
+def test_partial_undetermined_replicates_are_explicit_exclusions(target) -> None:
+    experiment = _experiment()
+    index = next(
+        i for i, well in enumerate(experiment.wells)
+        if well.sample_name == "C1" and well.target_name == target
+    )
+    experiment.wells[index] = replace(
+        experiment.wells[index], replicate_type=ReplicateType.TECHNICAL
+    )
+    experiment.wells.append(Well(
+        position="H12", sample_name="C1", target_name=target, cq=None,
+        replicate_type=ReplicateType.TECHNICAL,
+    ))
+    with pytest.raises(ValueError, match="undetermined.*H12"):
+        normalized_quantity(experiment, "C1", "GOI")
+    batch = normalized_quantity_all(experiment, "GOI")
+    assert not batch.is_complete
+    assert [item.sample_name for item in batch.exclusions] == ["C1"]
+    assert "H12" in batch.exclusions[0].reason
+    if target == "GAPDH":
+        names, _, excluded, _ = build_reference_matrix(
+            experiment, ["GAPDH", "RPLP0"]
+        )
+        assert "C1" not in names
+        assert excluded == ["C1"]
+
+
+def test_group_comparison_rejects_identical_groups() -> None:
+    with pytest.raises(ValueError, match="different"):
+        compare_groups(_experiment(), "GOI", "control", "control")

@@ -4,4 +4,4 @@ Covers qPCR MIQE validation, relative quantification, enzyme kinetics,
 fermentation kinetics, and FBA metabolic flux analysis.
 """
 
-__version__ = "0.5.1"
+__version__ = "0.6.8"

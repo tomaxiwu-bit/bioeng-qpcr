@@ -175,7 +175,7 @@ def pfaffl_all(
     Iterates over non-NTC samples that measured *target_name* and computes
     the efficiency-corrected ratio relative to *control_sample*.  The control
     sample itself is included (its ratio will be 1.0).  Samples with missing
-    or undetermined Cq data are silently skipped.
+    or undetermined Cq data cause explicit exclusions.
 
     Parameters
         experiment:

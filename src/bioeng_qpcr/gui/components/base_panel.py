@@ -110,14 +110,16 @@ class BasePanel(QWidget):
 
         # Left: controls
         left_scroll = QScrollArea()
+        left_scroll.setObjectName("ControlScroll")
+        left_scroll.viewport().setObjectName("ControlScrollViewport")
         left_scroll.setWidgetResizable(True)
         left_scroll.setFrameShape(QFrame.Shape.NoFrame)
         left_scroll.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
-        left_scroll.setStyleSheet("QScrollArea { background: transparent; }")
 
         self._controls_widget = QWidget()
+        self._controls_widget.setObjectName("ControlPane")
         self._controls_layout = QVBoxLayout(self._controls_widget)
         self._controls_layout.setContentsMargins(0, 0, 4, 0)
         self._controls_layout.setSpacing(14)
@@ -173,7 +175,7 @@ class BasePanel(QWidget):
         """Add a consistently styled plot card to the results column."""
         card = Card(title)
         card.addWidget(widget)
-        self._right_layout.addWidget(card, stretch=1)
+        self._right_layout.addWidget(card, stretch=2)
         return card
 
     def _panel_title(self) -> str:

@@ -9,6 +9,8 @@ The resulting executable is placed in ``dist/bioeng-qpcr/``.
 """
 
 import importlib.util
+import json
+import runpy
 import sys
 from pathlib import Path
 
@@ -19,6 +21,12 @@ block_cipher = None
 # Project root (where this spec file lives)
 project_root = Path(SPECPATH).resolve()
 src_dir = project_root / "src"
+release_inputs = runpy.run_path(str(project_root / "scripts/prepare_release.py"))[
+    "prepare_release"
+](project_root, project_root / ".workbench/release-inputs")
+source_archives = json.loads(
+    (project_root / "packaging/third-party-sources.json").read_text()
+)
 
 # Pillow contains dynamically imported image plugins and native extension
 # modules. Relying on matplotlib's transitive import discovery is fragile: a
@@ -38,6 +46,14 @@ a = Analysis(
     pathex=[str(src_dir)],
     binaries=pillow_binaries + cobra_binaries,
     datas=[
+        (str(release_inputs / "build-info.json"), "bioeng_qpcr"),
+        (str(release_inputs / "BUILD_INFO.json"), "."),
+        (str(release_inputs / "licenses"), "licenses"),
+        (str(release_inputs / "bioeng-qpcr-source.zip"), "sources"),
+        *[(str(project_root / ".workbench/third-party-sources" / s["filename"]),
+           "sources") for s in source_archives],
+        (str(src_dir / "bioeng_qpcr/web/templates"), "bioeng_qpcr/web/templates"),
+        (str(src_dir / "bioeng_qpcr/web/examples"), "bioeng_qpcr/web/examples"),
         # Include test fixtures as sample data
         (
             str(project_root / "tests" / "fixtures" / "*.csv"),
@@ -105,20 +121,27 @@ a = Analysis(
         "bioeng_qpcr.gui.components.file_selector",
         "bioeng_qpcr.gui.components.plot_canvas",
         "bioeng_qpcr.gui.panels",
+        "bioeng_qpcr.gui.panels.workbench_panel",
         "bioeng_qpcr.gui.panels.qpcr_panel",
         "bioeng_qpcr.gui.panels.enzyme_panel",
         "bioeng_qpcr.gui.panels.ferment_panel",
         "bioeng_qpcr.gui.panels.fba_panel",
+        "bioeng_qpcr.gui.panels.potency_panel",
+        "bioeng_qpcr.gui.panels.docking_panel",
+        "bioeng_qpcr.gui.panels.sequence_panel",
+        "bioeng_qpcr.gui.panels.preview_panel",
         # Third-party hidden imports
         "matplotlib.backends.backend_qtagg",
         "matplotlib.backends.backend_agg",
+        "matplotlib.backends.backend_svg",
+        "matplotlib.backends.backend_pdf",
         # Pillow is imported by matplotlib at panel-import time.
         "PIL",
         "PIL.Image",
         "PIL.ImageQt",
         "PIL.PngImagePlugin",
     ] + pillow_hiddenimports + cobra_hiddenimports,
-    hookspath=[],
+    hookspath=[str(project_root / "packaging/hooks")],
     hooksconfig={},
     runtime_hooks=[],
     excludes=[
@@ -166,12 +189,10 @@ a = Analysis(
         "win32com",
         "pywin32",
         "jsonschema",
-        "jinja2",
         "email_validator",
         "opentelemetry",
         "opentelemetry_api",
         "attrs",
-        "openpyxl",
         "xlrd",
         "xlwt",
         "selenium",
@@ -181,7 +202,6 @@ a = Analysis(
         "bokeh",
         "plotly",
         "streamlit",
-        "flask",
         "django",
         "sqlalchemy",
         "pymysql",
@@ -237,6 +257,19 @@ a = Analysis(
     cipher=block_cipher,
     noarchive=False,
 )
+
+# A Codex/Poppler runtime on PATH can be mistaken for a Qt dependency.  Its
+# ICU 78 binaries shadow Windows' compatible ICU shim and make QtCore fail to
+# load in the frozen app; the known-good portable build does not ship them.
+_foreign_icu = {"icuuc.dll", "icudt78.dll"}
+a.binaries = [entry for entry in a.binaries if entry[0].lower() not in _foreign_icu]
+
+# QWidget/QPainter does not use the optional Mesa software OpenGL fallback.
+a.binaries = [entry for entry in a.binaries
+              if Path(entry[0]).name.lower() != "opengl32sw.dll"]
+unused_qt = {"qt6pdf.dll", "qt6virtualkeyboard.dll", "qt6qml.dll", "qt6quick.dll"}
+if any(Path(entry[0]).name.lower() in unused_qt for entry in a.binaries):
+    raise RuntimeError("Unused Qt PDF/QML/keyboard libraries entered the release")
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 

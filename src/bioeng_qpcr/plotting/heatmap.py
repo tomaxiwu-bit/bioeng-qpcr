@@ -8,11 +8,10 @@ corresponds to low expression and is drawn *dark*.  Missing Cq values
 
 from __future__ import annotations
 
-import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.axes import Axes
-from matplotlib.figure import Figure
 from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.figure import Figure
 
 from bioeng_qpcr.domain.entities import Experiment
 from bioeng_qpcr.plotting.style import PlotStyle, apply_style, create_figure
@@ -87,7 +86,12 @@ def plot_cq_heatmap(
     cbar.ax.tick_params(labelsize=s.font_size)
 
     ax.set_xticks(np.arange(n_targets))
-    ax.set_xticklabels(targets, rotation=45, ha="right")
+    rotation = 0 if n_targets <= 4 else 45
+    ax.set_xticklabels(
+        targets,
+        rotation=rotation,
+        ha="center" if rotation == 0 else "right",
+    )
     ax.set_yticks(np.arange(n_samples))
     ax.set_yticklabels(samples)
 

@@ -215,10 +215,7 @@ def classify_inhibition(
     if not km_changes and not vmax_changes:
         inh_type = InhibitionType.NONE
         confidence = "high"
-        message = (
-            f"No inhibition detected (Km CV={km_cv:.1%}, "
-            f"Vmax CV={vmax_cv:.1%})."
-        )
+        message = f"No inhibition detected (Km CV={km_cv:.1%}, Vmax CV={vmax_cv:.1%})."
     elif km_changes and not vmax_changes and km_increasing:
         inh_type = InhibitionType.COMPETITIVE
         confidence = "high"
@@ -343,8 +340,10 @@ def _rate_uncompetitive(substrate, inhibitor, vmax, km, ki):
 
 def _rate_mixed(substrate, inhibitor, vmax, km, kic, kiu):
     """Mixed: distinct affinities for free enzyme (Kic) and ES (Kiu)."""
-    return vmax * substrate / (
-        km * (1.0 + inhibitor / kic) + substrate * (1.0 + inhibitor / kiu)
+    return (
+        vmax
+        * substrate
+        / (km * (1.0 + inhibitor / kic) + substrate * (1.0 + inhibitor / kiu))
     )
 
 
@@ -394,6 +393,27 @@ class GlobalInhibitionFit:
     akaike_weight: float
     converged: bool
 
+    def predict(self, substrate, inhibitor) -> np.ndarray:
+        """Evaluate this fitted mechanism using the same rate law as fitting."""
+        s, i = np.broadcast_arrays(
+            np.asarray(substrate, dtype=float), np.asarray(inhibitor, dtype=float)
+        )
+        if (
+            not self.converged
+            or not np.all(np.isfinite(s))
+            or not np.all(np.isfinite(i))
+            or np.any(s < 0)
+            or np.any(i < 0)
+        ):
+            raise ValueError(
+                "Prediction requires a converged fit and finite "
+                "nonnegative concentrations."
+            )
+        for kind, names, rate in _MODEL_REGISTRY:
+            if kind == self.inhibition_type:
+                return rate(s, i, *(self.parameters[name] for name in names))
+        raise ValueError("Unknown inhibition mechanism.")
+
 
 @dataclass(frozen=True)
 class InhibitionModelComparison:
@@ -430,9 +450,7 @@ def _stack_datasets(
         substrate_arr = np.asarray(substrate, dtype=float)
         velocity_arr = np.asarray(velocity, dtype=float)
         if substrate_arr.shape != velocity_arr.shape:
-            raise ValueError(
-                "substrate and velocity arrays must have the same shape."
-            )
+            raise ValueError("substrate and velocity arrays must have the same shape.")
         substrates.append(substrate_arr)
         inhibitors.append(np.full_like(substrate_arr, float(inhibitor_conc)))
         velocities.append(velocity_arr)
@@ -456,9 +474,7 @@ def _information_criteria(rss: float, n: int, k: int) -> tuple[float, float, flo
     return float(aic), float(aicc), float(bic)
 
 
-_MODEL_REGISTRY: list[
-    tuple[InhibitionType, list[str], Callable[..., np.ndarray]]
-] = [
+_MODEL_REGISTRY: list[tuple[InhibitionType, list[str], Callable[..., np.ndarray]]] = [
     (InhibitionType.COMPETITIVE, ["vmax", "km", "ki"], _rate_competitive),
     (InhibitionType.NON_COMPETITIVE, ["vmax", "km", "ki"], _rate_noncompetitive),
     (InhibitionType.UNCOMPETITIVE, ["vmax", "km", "ki"], _rate_uncompetitive),
@@ -507,8 +523,7 @@ def compare_inhibition_models(
     """
     if len(datasets) < 2:
         raise ValueError(
-            f"Need at least 2 datasets for model comparison, "
-            f"got {len(datasets)}."
+            f"Need at least 2 datasets for model comparison, got {len(datasets)}."
         )
 
     substrate_all, inhibitor_all, velocity_all = _stack_datasets(datasets)
@@ -516,8 +531,7 @@ def compare_inhibition_models(
     distinct_inhibitors = {float(i) for i in np.unique(inhibitor_all)}
     if not any(i > 0 for i in distinct_inhibitors):
         raise ValueError(
-            "All inhibitor concentrations are zero; there is no inhibition "
-            "to model."
+            "All inhibitor concentrations are zero; there is no inhibition to model."
         )
     if len(distinct_inhibitors) < 2:
         raise ValueError(
@@ -566,8 +580,7 @@ def compare_inhibition_models(
             GlobalInhibitionFit(
                 inhibition_type=inhibition_type,
                 parameters={
-                    name: float(v)
-                    for name, v in zip(param_names, popt, strict=True)
+                    name: float(v) for name, v in zip(param_names, popt, strict=True)
                 },
                 parameter_std=parameter_std,
                 rss=rss,
@@ -587,9 +600,7 @@ def compare_inhibition_models(
         raise ValueError("No inhibition model converged to a finite solution.")
 
     best_aicc = min(f.aicc for f in finite_fits)
-    weight_denominator = sum(
-        np.exp(-(f.aicc - best_aicc) / 2.0) for f in finite_fits
-    )
+    weight_denominator = sum(np.exp(-(f.aicc - best_aicc) / 2.0) for f in finite_fits)
     ranked: list[GlobalInhibitionFit] = []
     for fit in fits:
         if np.isfinite(fit.aicc):

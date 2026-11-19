@@ -17,10 +17,13 @@ own via ``bioeng-qpcr miqe``.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import asdict, dataclass
 from html import escape
+from pathlib import Path
 from typing import Any
+from zipfile import ZIP_DEFLATED, ZipFile
 
 from bioeng_qpcr.calculations import normalized_quantity_all
 from bioeng_qpcr.domain.entities import Experiment
@@ -43,6 +46,73 @@ class ResearchReport:
     def to_json(self, indent: int = 2) -> str:
         return json.dumps(self.payload, indent=indent, ensure_ascii=False)
 
+    def write_package(
+        self,
+        path: str | Path,
+        *,
+        source_file: str | Path | None = None,
+    ) -> Path:
+        """Write a checksum-verifiable, RO-Crate-described research ZIP."""
+        destination = Path(path)
+        members = {
+            "report.html": self.html.encode("utf-8"),
+            "report.json": (self.to_json() + "\n").encode("utf-8"),
+            "miqe2.json": (
+                json.dumps(self.payload["miqe2"], indent=2, ensure_ascii=False) + "\n"
+            ).encode("utf-8"),
+            "provenance.json": (
+                json.dumps(self.payload["provenance"], indent=2, ensure_ascii=False)
+                + "\n"
+            ).encode("utf-8"),
+        }
+        if source_file is not None:
+            source = Path(source_file)
+            if not source.is_file():
+                raise FileNotFoundError(f"Research package input not found: {source}")
+            members[f"input/{source.name}"] = source.read_bytes()
+
+        entities = [
+            {
+                "@id": name,
+                "@type": "File",
+                "sha256": hashlib.sha256(content).hexdigest(),
+            }
+            for name, content in sorted(members.items())
+        ]
+        crate = {
+            "@context": "https://w3id.org/ro/crate/1.1/context",
+            "@graph": [
+                {
+                    "@id": "ro-crate-metadata.json",
+                    "@type": "CreativeWork",
+                    "about": {"@id": "./"},
+                    "conformsTo": {"@id": "https://w3id.org/ro/crate/1.1"},
+                },
+                {
+                    "@id": "./",
+                    "@type": "Dataset",
+                    "name": (
+                        f"{self.payload['experiment']['name']} "
+                        "bioeng-qpcr research package"
+                    ),
+                    "hasPart": [{"@id": item["@id"]} for item in entities],
+                },
+                *entities,
+            ],
+        }
+        members["ro-crate-metadata.json"] = (
+            json.dumps(crate, indent=2, ensure_ascii=False) + "\n"
+        ).encode("utf-8")
+        members["checksums.sha256"] = "".join(
+            f"{hashlib.sha256(content).hexdigest()}  {name}\n"
+            for name, content in sorted(members.items())
+        ).encode("utf-8")
+
+        with ZipFile(destination, "w", compression=ZIP_DEFLATED) as archive:
+            for name, content in sorted(members.items()):
+                archive.writestr(name, content)
+        return destination
+
 
 def _table(headers: list[str], rows: list[list[Any]]) -> str:
     head = "".join(f"<th>{escape(str(item))}</th>" for item in headers)
@@ -57,13 +127,38 @@ def build_research_report(
     experiment: Experiment,
     target_name: str,
     reference_targets: list[str] | None = None,
+    *,
+    miqe_answers: dict[str, bool | str] | None = None,
 ) -> ResearchReport:
     """Run readiness, normalized quantities, MIQE 2.0, and provenance as one workflow."""
     readiness = ValidationEngine().run(experiment)
     analysis = normalized_quantity_all(experiment, target_name, reference_targets)
-    miqe = miqe2_checklist(experiment, experiment_name=experiment.name)
+    miqe = miqe2_checklist(
+        experiment,
+        answers=miqe_answers,
+        experiment_name=experiment.name,
+    )
+    normalized_miqe_answers = {
+        key: value.strip() if isinstance(value, str) else value
+        for key, value in sorted((miqe_answers or {}).items())
+    }
+    miqe_evidence_hash = hashlib.sha256(
+        json.dumps(
+            normalized_miqe_answers,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+    ).hexdigest()
+    provenance_parameters = dict(analysis.parameters)
+    provenance_parameters.update(
+        {
+            "miqe2_standard": "MIQE 2.0 (2025)",
+            "miqe2_manual_evidence_sha256": miqe_evidence_hash,
+        }
+    )
     manifest = ProvenanceManifest.from_experiment(
-        experiment, parameters=analysis.parameters
+        experiment, parameters=provenance_parameters
     )
     manifest.exclusions = [asdict(item) for item in analysis.exclusions]
 
@@ -139,15 +234,30 @@ def _miqe_html(miqe: Miqe2Report) -> str:
         f"n/a {s['na']} &mdash; essential completeness "
         f"{miqe.essential_completeness * 100:.1f}%.</p>"
     ]
+    if miqe.evidence_gap_plan:
+        plan_rows = [
+            [
+                action["rank"],
+                action["action_type"],
+                action["title"],
+                action["resolves_count"],
+                action["guidance"],
+            ]
+            for action in miqe.evidence_gap_plan
+        ]
+        lines.append("<h3>Prioritized evidence-gap plan</h3>")
+        lines.append(
+            _table(
+                ["Priority", "Type", "Action", "Items addressed", "Guidance"],
+                plan_rows,
+            )
+        )
     marks = {"reported": "✔", "missing": "&nbsp;&mdash;", "na": "NA"}
     for category_id, _label in MIQE2_CATEGORIES:
         group = [i for i in miqe.items if i.category == category_id]
         if not group:
             continue
-        rows = [
-            [marks[i.status], i.field_id, i.label, i.evidence]
-            for i in group
-        ]
+        rows = [[marks[i.status], i.field_id, i.label, i.evidence] for i in group]
         lines.append(f"<h3>{escape(dict(MIQE2_CATEGORIES)[category_id])}</h3>")
         lines.append(_table(["Status", "Field", "Item", "Evidence"], rows))
     return "\n".join(lines)

@@ -38,11 +38,15 @@ from bioeng_qpcr.gui.components.base_panel import BasePanel, Card
 from bioeng_qpcr.gui.components.file_selector import FileSelector
 from bioeng_qpcr.gui.components.plot_canvas import PlotCanvas
 from bioeng_qpcr.io import CSVValidationError, read_tidy_csv
-from bioeng_qpcr.plotting import plot_cq_heatmap, plot_fold_change
+from bioeng_qpcr.plotting import PlotStyle, plot_cq_heatmap, plot_fold_change
 from bioeng_qpcr.reporting import build_research_report
 from bioeng_qpcr.validation import RuleExecutionError, ValidationEngine
 
 __all__ = ["QpcrPanel"]
+
+_EMBEDDED_HEATMAP_STYLE = PlotStyle(
+    figure_size=(8, 4), dpi=100, font_size=8, title_size=10, grid=False
+)
 
 
 class QpcrPanel(BasePanel):
@@ -157,7 +161,7 @@ class QpcrPanel(BasePanel):
     def _build_plot_area(self) -> None:
         """Append the plot canvas below the result display on the right pane."""
         self._plot_canvas = PlotCanvas(self)
-        self._plot_canvas.setMinimumHeight(230)
+        self._plot_canvas.setMinimumHeight(260)
         self._add_plot_widget(self._plot_canvas, "数据可视化")
 
     def _wire_signals(self) -> None:
@@ -426,7 +430,7 @@ class QpcrPanel(BasePanel):
 
     def _draw_heatmap(self, experiment) -> bool:
         try:
-            fig, _ax = plot_cq_heatmap(experiment)
+            fig, _ax = plot_cq_heatmap(experiment, _EMBEDDED_HEATMAP_STYLE)
             self._plot_canvas.set_figure(fig)
             self._plot_canvas.updateGeometry()
             return True

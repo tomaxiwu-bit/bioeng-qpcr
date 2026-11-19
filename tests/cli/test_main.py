@@ -29,7 +29,81 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-from bioeng_qpcr.cli.main import cli
+from bioeng_qpcr.cli.main import _dicts_to_csv, cli
+
+
+def test_align_rejects_negative_record_index(runner: CliRunner) -> None:
+    examples = Path(__file__).resolve().parents[2] / "examples"
+    result = runner.invoke(
+        cli,
+        [
+            "align",
+            str(examples / "sequencing_reads.fastq"),
+            str(examples / "sequencing_reference.fasta"),
+            "--read-index",
+            "-1",
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "out of range" in result.output
+
+
+def test_csv_export_neutralises_spreadsheet_formulas() -> None:
+    text = _dicts_to_csv(
+        [
+            {"sample_name": '=HYPERLINK("https://example.test")', "value": -1.5},
+            {"sample_name": "  @SUM(1,2)", "value": 2.0},
+        ]
+    )
+    rows = list(csv_module.DictReader(text.splitlines()))
+
+    assert rows[0]["sample_name"].startswith("'=")
+    assert rows[1]["sample_name"].startswith("'  @")
+    assert rows[0]["value"] == "-1.5"
+
+
+def test_raw_csv_mode_preserves_formula_leading_identifiers() -> None:
+    text = _dicts_to_csv(
+        [{"sample_name": "-control", "compound": "+ligand"}],
+        escape_formulas=False,
+    )
+    row = next(csv_module.DictReader(text.splitlines()))
+
+    assert row == {"sample_name": "-control", "compound": "+ligand"}
+
+
+def test_standard_curve_reports_empirical_range(runner: CliRunner) -> None:
+    with runner.isolated_filesystem():
+        path = Path("standards.csv")
+        path.write_text(
+            "concentration,cq,replicate\n"
+            "1,35.0,1\n1,,2\n1,Undetermined,3\n"
+            "10,31.2,1\n10,31.3,2\n10,31.1,3\n"
+            "100,27.8,1\n100,27.7,2\n100,27.9,3\n"
+            "1000,24.5,1\n1000,24.4,2\n1000,24.6,3\n",
+            encoding="utf-8",
+        )
+        result = runner.invoke(
+            cli,
+            [
+                "standard-curve",
+                str(path),
+                "--target",
+                "GAPDH",
+                "--predict-concentration",
+                "10",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["performance"]["lod"] == 10.0
+        assert payload["performance"]["lloq"] == 10.0
+        assert payload["performance"]["uloq"] == 1000.0
+        assert payload["predictions"][0]["lower_cq"] < 31.2
+        assert payload["predictions"][0]["extrapolated"] is False
+
 
 # ---------------------------------------------------------------------------
 # Shared test data
@@ -478,6 +552,8 @@ class TestResearchWorkflow:
                     "report.json",
                     "--miqe-output-file",
                     "miqe.json",
+                    "--package-file",
+                    "research.zip",
                 ],
             )
             assert result.exit_code == 0
@@ -495,6 +571,7 @@ class TestResearchWorkflow:
             miqe = json.loads(Path("miqe.json").read_text(encoding="utf-8"))
             assert miqe["standard"] == "MIQE 2.0 (2025)"
             assert len(miqe["items"]) == len(payload["miqe2"]["items"])
+            assert Path("research.zip").is_file()
 
     def test_miqe_command_emits_checklist(self, runner: CliRunner) -> None:
         with runner.isolated_filesystem():
@@ -530,6 +607,73 @@ class TestResearchWorkflow:
                 "Data Analysis",
             ):
                 assert label in result_text.stdout
+
+    def test_miqe_answers_file_updates_checklist_and_report(
+        self, runner: CliRunner
+    ) -> None:
+        with runner.isolated_filesystem():
+            Path("answers.json").write_text(
+                json.dumps({"protocol_instrument": "Bio-Rad CFX96, serial CFX-001"}),
+                encoding="utf-8",
+            )
+            result = runner.invoke(
+                cli,
+                [
+                    "miqe",
+                    str(RESEARCHER_EXAMPLE),
+                    "--answers-file",
+                    "answers.json",
+                    "--output",
+                    "json",
+                ],
+            )
+            assert result.exit_code == 0
+            payload = json.loads(result.stdout)
+            instrument = next(
+                item
+                for item in payload["items"]
+                if item["field_id"] == "protocol_instrument"
+            )
+            assert instrument["evidence"] == "Bio-Rad CFX96, serial CFX-001"
+
+            report_result = runner.invoke(
+                cli,
+                [
+                    "report",
+                    str(RESEARCHER_EXAMPLE),
+                    "--target",
+                    "IL6",
+                    "--reference-targets",
+                    "GAPDH,RPLP0",
+                    "--miqe-answers-file",
+                    "answers.json",
+                    "--json-file",
+                    "report.json",
+                ],
+            )
+            assert report_result.exit_code == 0
+            report_payload = json.loads(Path("report.json").read_text(encoding="utf-8"))
+            instrument = next(
+                item
+                for item in report_payload["miqe2"]["items"]
+                if item["field_id"] == "protocol_instrument"
+            )
+            assert instrument["status"] == "reported"
+
+    def test_miqe_answers_file_rejects_unknown_fields(self, runner: CliRunner) -> None:
+        with runner.isolated_filesystem():
+            Path("answers.json").write_text('{"unknown_field": true}', encoding="utf-8")
+            result = runner.invoke(
+                cli,
+                [
+                    "miqe",
+                    str(RESEARCHER_EXAMPLE),
+                    "--answers-file",
+                    "answers.json",
+                ],
+            )
+            assert result.exit_code == 1
+            assert "Unknown MIQE 2.0 field" in result.output
 
     def test_provenance_output_file(self, runner: CliRunner) -> None:
         with runner.isolated_filesystem():
@@ -711,9 +855,11 @@ class TestHelp:
         assert "plot" in result.output
 
     def test_version_option(self, runner: CliRunner) -> None:
+        from bioeng_qpcr import __version__
+
         result = runner.invoke(cli, ["--version"])
         assert result.exit_code == 0
-        assert "0.5.1" in result.output
+        assert __version__ in result.output
 
 
 # ---------------------------------------------------------------------------
@@ -748,9 +894,7 @@ class TestExitCodes:
 class TestRdmlInput:
     """Every ingesting sub-command accepts RDML files."""
 
-    RDML_EXAMPLE = (
-        Path(__file__).resolve().parents[2] / "examples" / "rdml_example.xml"
-    )
+    RDML_EXAMPLE = Path(__file__).resolve().parents[2] / "examples" / "rdml_example.xml"
 
     def test_validate_rdml_xml(self, runner: CliRunner) -> None:
         result = runner.invoke(
@@ -774,22 +918,16 @@ class TestRdmlInput:
             "GAPDH,RPLP0",
         ]
         with runner.isolated_filesystem():
-            csv_result = runner.invoke(
-                cli, ["analyze", str(RESEARCHER_EXAMPLE), *args]
-            )
-            rdml_result = runner.invoke(
-                cli, ["analyze", str(self.RDML_EXAMPLE), *args]
-            )
+            csv_result = runner.invoke(cli, ["analyze", str(RESEARCHER_EXAMPLE), *args])
+            rdml_result = runner.invoke(cli, ["analyze", str(self.RDML_EXAMPLE), *args])
 
         assert csv_result.exit_code == 0
         assert rdml_result.exit_code == 0
         csv_by_sample = {
-            row["sample_name"]: row
-            for row in json.loads(csv_result.stdout)["results"]
+            row["sample_name"]: row for row in json.loads(csv_result.stdout)["results"]
         }
         rdml_by_sample = {
-            row["sample_name"]: row
-            for row in json.loads(rdml_result.stdout)["results"]
+            row["sample_name"]: row for row in json.loads(rdml_result.stdout)["results"]
         }
         assert set(csv_by_sample) == set(rdml_by_sample)
         for sample, row in csv_by_sample.items():
@@ -862,9 +1000,7 @@ class TestOutliers:
     def test_outliers_json_output(self, runner: CliRunner) -> None:
         with runner.isolated_filesystem():
             csv_path = _write_csv("data.csv", OUTLIER_CSV)
-            result = runner.invoke(
-                cli, ["outliers", csv_path, "--output", "json"]
-            )
+            result = runner.invoke(cli, ["outliers", csv_path, "--output", "json"])
 
         assert result.exit_code == 0
         data = json.loads(result.stdout)

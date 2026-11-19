@@ -138,7 +138,7 @@ def delta_delta_cq_all(
     Iterates over non-NTC samples that measured *target_name* and computes
     ΔΔCq relative to *control_sample*.  The control sample itself is
     included (its ΔΔCq will be 0 and fold change 1).  Samples with missing
-    or undetermined Cq data are silently skipped.
+    or undetermined Cq data cause explicit exclusions.
 
     Parameters
         experiment:

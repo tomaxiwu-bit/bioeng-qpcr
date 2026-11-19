@@ -16,6 +16,7 @@ import pytest
 
 from bioeng_qpcr.calculations.efficiency import (
     EfficiencyResult,
+    assess_standard_curve_range,
     fit_efficiency_from_standard_curve,
     fit_efficiency_from_trace,
 )
@@ -206,6 +207,29 @@ class TestStandardCurveUncertainty:
         assert result.slope_ci[0] < result.slope < result.slope_ci[1]
         assert result.efficiency_ci is not None
         assert result.efficiency_ci[0] < result.efficiency < result.efficiency_ci[1]
+
+    def test_prediction_interval_contains_fitted_cq(self) -> None:
+        log_conc = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+        cq = np.array([31.8, 28.1, 25.2, 21.5, 18.6])
+
+        result = fit_efficiency_from_standard_curve(log_conc, cq)
+        estimate, lower, upper = result.predict_cq_interval(3.0)
+
+        assert estimate == pytest.approx(result.slope * 3.0 + result.intercept)
+        assert lower < estimate < upper
+
+
+def test_empirical_detection_and_quantification_range() -> None:
+    concentrations = np.array([1, 1, 1, 10, 10, 10, 100, 100, 100], dtype=float)
+    cq = np.array([35.0, np.nan, np.nan, 31.2, 31.3, 31.1, 27.8, 27.7, 27.9])
+
+    result = assess_standard_curve_range(concentrations, cq)
+
+    assert result.lod == 10.0
+    assert result.lloq == 10.0
+    assert result.uloq == 100.0
+    assert result.dynamic_range_log10 == pytest.approx(1.0)
+    assert result.levels[0].detection_rate == pytest.approx(1 / 3)
 
 
 # ---------------------------------------------------------------------------

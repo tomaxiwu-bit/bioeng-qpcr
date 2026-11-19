@@ -124,3 +124,11 @@ def test_switching_method_disables_group_comparison(panel: QpcrPanel) -> None:
     assert not panel._group_compare_check.isChecked()
     assert not panel._control_group_combo.isEnabled()
     assert not panel._treated_group_combo.isEnabled()
+
+
+def test_embedded_heatmap_uses_compact_readable_style(panel: QpcrPanel) -> None:
+    assert panel._draw_heatmap(_three_group_experiment())
+
+    axis = panel._plot_canvas.figure.axes[0]
+    assert axis.yaxis.get_ticklabels()[0].get_fontsize() == 8
+    assert all(label.get_rotation() == 0 for label in axis.get_xticklabels())

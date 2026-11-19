@@ -92,6 +92,8 @@ class PlotCanvas(FigureCanvas):
 
     def set_figure(self, fig: Figure) -> None:
         """Replace the internal figure and redraw."""
+        if self.figure is not fig:
+            self.figure.clear()
         fig.set_canvas(self)
         self.figure = fig
         width = max(self.width(), 1)
@@ -103,4 +105,7 @@ class PlotCanvas(FigureCanvas):
             # Some specialized matplotlib layouts cannot be tightened.
             pass
         self.updateGeometry()
-        self.draw_idle()
+        # Draw synchronously when swapping figures.  A queued draw can leave
+        # pixels from the previous Agg buffer visible until the next repaint.
+        self.draw()
+        self.update()

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Signal
+from pathlib import Path
+
+from PySide6.QtCore import QSettings, QStandardPaths, Signal
 from PySide6.QtWidgets import (
     QFileDialog,
     QHBoxLayout,
@@ -27,6 +29,9 @@ class FileSelector(QWidget):
     ) -> None:
         super().__init__(parent)
         self._file_filter = file_filter
+        self._path = ""
+        self._settings = QSettings("bioeng-qpcr", "bioeng-qpcr")
+        self.setAcceptDrops(True)
         self._build_ui(label)
 
     def _build_ui(self, label: str) -> None:
@@ -41,9 +46,10 @@ class FileSelector(QWidget):
         row.setSpacing(8)
 
         self._path_edit = QLineEdit()
-        self._path_edit.setPlaceholderText("尚未选择文件")
+        self._path_edit.setPlaceholderText("点击选择，或将文件拖到这里")
         self._path_edit.setReadOnly(True)
         self._path_edit.setMinimumWidth(0)
+        self._path_edit.setAcceptDrops(False)
 
         btn = QPushButton("选择文件")
         btn.setObjectName("SecondaryButton")
@@ -58,17 +64,63 @@ class FileSelector(QWidget):
         layout.addLayout(row)
 
     def _on_browse(self) -> None:
+        default_directory = QStandardPaths.writableLocation(
+            QStandardPaths.StandardLocation.DocumentsLocation
+        )
+        initial_directory = self._settings.value(
+            "last_input_directory", default_directory, type=str
+        )
         path, _ = QFileDialog.getOpenFileName(
-            self, "选择文件", "", self._file_filter
+            self, "选择文件", initial_directory, self._file_filter
         )
         if path:
-            self._path_edit.setText(path)
-            self._path_edit.setToolTip(path)
-            self.file_selected.emit(path)
+            self._set_path(path)
+
+    def _set_path(self, path: str) -> None:
+        file_path = Path(path).resolve()
+        self._path = str(file_path)
+        self._path_edit.setText(file_path.name)
+        self._path_edit.setToolTip(self._path)
+        self._settings.setValue("last_input_directory", str(file_path.parent))
+        self.file_selected.emit(self._path)
+
+    @staticmethod
+    def _dropped_file(event) -> str:
+        urls = event.mimeData().urls() if event.mimeData().hasUrls() else []
+        if len(urls) != 1 or not urls[0].isLocalFile():
+            return ""
+        path = urls[0].toLocalFile()
+        return path if Path(path).is_file() else ""
+
+    def _set_drag_active(self, active: bool) -> None:
+        self._path_edit.setProperty("dragActive", active)
+        self._path_edit.style().unpolish(self._path_edit)
+        self._path_edit.style().polish(self._path_edit)
+
+    def dragEnterEvent(self, event) -> None:  # noqa: N802 - Qt API
+        if self._dropped_file(event):
+            self._set_drag_active(True)
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dragLeaveEvent(self, event) -> None:  # noqa: N802 - Qt API
+        self._set_drag_active(False)
+        event.accept()
+
+    def dropEvent(self, event) -> None:  # noqa: N802 - Qt API
+        self._set_drag_active(False)
+        path = self._dropped_file(event)
+        if not path:
+            event.ignore()
+            return
+        self._set_path(path)
+        event.acceptProposedAction()
 
     def get_path(self) -> str:
-        return self._path_edit.text().strip()
+        return self._path or self._path_edit.text().strip()
 
     def clear(self) -> None:
+        self._path = ""
         self._path_edit.clear()
         self._path_edit.setToolTip("")

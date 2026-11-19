@@ -71,8 +71,8 @@ def build_reference_matrix(
 
     Determined wells are reduced with :func:`_mean_cq`, which averages true
     technical replicates but rejects mixed, duplicate-single, and collapsed
-    biological replicate declarations. Samples without a determined Cq for
-    any candidate are excluded complete-case and returned to the caller.
+    biological replicate declarations. Samples with any undetermined replicate
+    or missing candidate are excluded complete-case and returned to the caller.
 
     With ``efficiency_corrected=True`` each value is
     ``-Cq * log2(1 + efficiency)``, the log2 relative-quantity scale used by
@@ -92,7 +92,7 @@ def build_reference_matrix(
         row: list[float] = []
         for target in candidates:
             wells = experiment.wells_for(sample_name, target)
-            if not wells or not any(well.cq is not None for well in wells):
+            if not wells or any(well.cq is None for well in wells):
                 excluded_samples.append(sample_name)
                 break
             mean_cq = _mean_cq(experiment, sample_name, target)

@@ -81,6 +81,7 @@ def find_blocked_reactions(
     model: Model,
     *,
     threshold: float = 1e-6,
+    processes: int | None = None,
 ) -> BlockedReactionResult:
     """Find reactions that cannot carry any flux.
 
@@ -94,6 +95,9 @@ def find_blocked_reactions(
         threshold:
             Flux magnitude below which a reaction is considered blocked.
             Must be >= the model's solver tolerance.
+        processes:
+            Worker count forwarded to COBRApy; the local web endpoint uses one
+            to avoid starting subprocesses from a frozen HTTP server.
 
     Returns
         :class:`BlockedReactionResult` with the blocked reaction IDs.
@@ -104,7 +108,9 @@ def find_blocked_reactions(
     model_tolerance = getattr(model, "tolerance", 1e-6)
     effective_threshold = max(threshold, model_tolerance)
 
-    blocked_list = _cobra_blocked(model, zero_cutoff=effective_threshold)
+    blocked_list = _cobra_blocked(
+        model, zero_cutoff=effective_threshold, processes=processes
+    )
     n_total = len(model.reactions)
     n_blocked = len(blocked_list)
     fraction = n_blocked / n_total if n_total > 0 else 0.0

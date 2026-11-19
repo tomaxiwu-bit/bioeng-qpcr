@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bioeng-qpcr"
-version = "0.5.1"
+version = "0.6.8"
 description = "Auditable qPCR analysis engine with enzyme kinetics, fermentation kinetics, and FBA metabolic flux support"
 readme = "README.md"
 license = "MIT"
-license-files = ["LICENSE"]
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
 requires-python = ">=3.10"
 authors = [{name = "bioeng-qpcr contributors"}]
 keywords = ["qPCR", "MIQE", "bioinformatics", "validation", "auditable", "enzyme kinetics", "fermentation kinetics", "Monod", "FBA", "metabolic flux", "COBRApy"]
@@ -30,6 +30,11 @@ dependencies = [
     "openpyxl>=3.1",
 ]
 
+[project.urls]
+Repository = "https://github.com/tomaxiwu-bit/bioeng-qpcr"
+Issues = "https://github.com/tomaxiwu-bit/bioeng-qpcr/issues"
+Documentation = "https://github.com/tomaxiwu-bit/bioeng-qpcr/tree/main/docs"
+
 [project.optional-dependencies]
 plot = ["matplotlib>=3.7"]
 mcp = [
@@ -45,15 +50,17 @@ fba = [
     "cobra>=0.26,<0.32",
 ]
 gui = [
+    "flask>=3.1",
     "PySide6>=6.6",
     "matplotlib>=3.7",
     "Pillow>=10.0",
 ]
 web = [
-    "flask>=3.0",
+    "flask>=3.1",
     "matplotlib>=3.7",
 ]
 desktop-build = [
+    "flask>=3.1",
     "PySide6>=6.6",
     "matplotlib>=3.7",
     "Pillow>=10.0",
@@ -72,7 +79,7 @@ dev = [
     "cobra>=0.26,<0.32",
     "PySide6>=6.6",
     "Pillow>=10.0",
-    "flask>=3.0",
+    "flask>=3.1",
 ]
 
 [project.scripts]
@@ -83,6 +90,9 @@ bioeng-qpcr-web = "bioeng_qpcr.web.app:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+bioeng_qpcr = ["web/templates/*.html", "web/examples/*", "web/examples/qpcr_workbench/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

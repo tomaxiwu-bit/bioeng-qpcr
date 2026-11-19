@@ -20,7 +20,9 @@ from __future__ import annotations
 import importlib
 import importlib.metadata
 import json
+import sys
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, ClassVar
 
 from bioeng_qpcr.domain.entities import Experiment
@@ -205,6 +207,38 @@ class ProvenanceManifest:
     # ------------------------------------------------------------------
     # Serialisation
     # ------------------------------------------------------------------
+
+    @classmethod
+    def capture_run(
+        cls,
+        *,
+        parameters: dict[str, Any],
+        input_hash: str | None = None,
+        raw_input_hash: str | None = None,
+    ) -> dict[str, Any]:
+        """Capture an execution without attributing today's environment to old data."""
+        versions = cls.capture_package_versions()
+        for name in ("matplotlib", "cobra", "optlang", "swiglpk", "openpyxl"):
+            try:
+                versions[name] = importlib.metadata.version(name)
+            except importlib.metadata.PackageNotFoundError:
+                pass
+        result = cls(
+            input_hash=input_hash,
+            raw_input_hash=raw_input_hash,
+            parameters=parameters,
+            package_versions=versions,
+        ).to_dict()
+        build_path = Path(__file__).resolve().parents[1] / "build-info.json"
+        result["runtime"] = {
+            "python": sys.version.split()[0],
+            "platform": sys.platform,
+            "build": (
+                json.loads(build_path.read_text(encoding="utf-8"))
+                if build_path.is_file() else None
+            ),
+        }
+        return result
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serialisable dictionary representation.

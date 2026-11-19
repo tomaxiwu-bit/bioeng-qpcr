@@ -1,0 +1,1337 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>bioeng-qpcr · 分析工作台</title>
+<style>
+  :root{
+    --bg:#f6f4ef; --panel:#ffffff; --ink:#2a2724; --muted:#6d675f;
+    --line:#e4dfd6; --brand:#8a5a3b; --brand-deep:#6e452c;
+    --accent:#2b6f5e; --danger:#b23b3b; --warn:#a06a12;
+    --ok:#2b6f5e; --chip:#efe9e0; --radius:14px;
+    --shadow:0 1px 2px rgba(42,39,36,.05),0 6px 24px rgba(42,39,36,.06);
+    --mono:'SFMono-Regular',ui-monospace,'Cascadia Code',Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:'SF Pro Text',-apple-system,'Segoe UI',Roboto,'PingFang SC','Microsoft YaHei',sans-serif;
+    line-height:1.6;font-size:15px}
+
+  /* ---------- top bar (mirrors the reference platform header) ---------- */
+  .topbar{background:#fff;border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:26px;padding:0 22px;height:56px;position:sticky;top:0;z-index:20}
+  .topbar .mark{display:flex;align-items:baseline;gap:10px;font-weight:700;font-size:17px;white-space:nowrap}
+  .topbar .mark .ver{font-family:var(--mono);font-size:11.5px;color:var(--muted);font-weight:400}
+  .topnav{display:flex;gap:22px;font-size:14px;color:var(--muted);flex-wrap:wrap}
+  .topnav span{cursor:default}
+  .topnav span.on{color:var(--brand);font-weight:600}
+  .topbar .spacer{flex:1}
+  .badge{font-size:12.5px;color:var(--muted);border:1px solid var(--line);
+    border-radius:999px;padding:3px 12px;white-space:nowrap}
+
+  /* ---------- three-column workspace ---------- */
+  .layout{display:grid;grid-template-columns:236px minmax(0,1fr) 420px;gap:16px;
+    padding:16px;align-items:start;max-width:1680px;margin:0 auto}
+  @media(max-width:1400px){.layout{grid-template-columns:212px minmax(0,1fr) 380px}}
+  .column{min-width:0}
+
+  .rail,.card{background:var(--panel);border:1px solid var(--line);
+    border-radius:var(--radius);box-shadow:var(--shadow)}
+  .rail{padding:10px;position:sticky;top:72px}
+  .rail h4{margin:6px 8px 10px;font-size:12px;letter-spacing:.6px;text-transform:uppercase;color:var(--muted)}
+  .railitem{display:grid;grid-template-columns:30px 1fr;gap:9px;align-items:center;width:100%;text-align:left;border:none;background:transparent;
+    font:inherit;color:var(--ink);padding:9px 11px;border-radius:10px;cursor:pointer;transition:.15s}
+  .railitem:hover{background:#faf6f0}
+  .railitem.active{background:var(--brand);color:#fff}
+  .railitem.active .sub{color:rgba(255,255,255,.8)}
+  .railitem .railicon{display:grid;place-items:center;width:28px;height:28px;border:1px solid var(--line);
+    border-radius:9px;color:var(--brand);font-family:var(--mono);font-size:12px;font-weight:700}
+  .railitem.active .railicon{border-color:rgba(255,255,255,.35);color:#fff}
+  .railitem .nm{display:block;font-weight:600;font-size:14px}
+  .railitem .sub{display:block;font-size:11.5px;color:var(--muted);line-height:1.45}
+
+  .card{padding:18px}
+  .card + .card{margin-top:14px}
+  .card h2{margin:0 0 3px;font-size:16px}
+  .card .hint{color:var(--muted);font-size:12.5px;margin:0 0 14px}
+
+  .chartbar{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+  .chartbar .title{font-weight:600;font-size:15px}
+  .chartbar .spacer{flex:1}
+  .ghost{border:1px solid var(--line);background:#fdfcf9;color:var(--muted);font:inherit;
+    font-size:12.5px;padding:5px 12px;border-radius:999px;cursor:pointer}
+  .ghost:hover{border-color:var(--brand);color:var(--brand)}
+  .chartbox{border:1px solid var(--line);border-radius:11px;background:#fff;
+    min-height:330px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+  .chartbox img{max-width:100%;max-height:520px;display:block}
+  .chartbox.gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+    gap:12px;padding:12px;align-items:start;justify-content:stretch}
+  .figurecard{margin:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}
+  .figurecard img{width:100%;height:auto;max-height:420px;object-fit:contain;background:#fffdf9}
+  .figurecard figcaption{padding:8px 10px;color:var(--muted);font-size:12px;
+    border-top:1px solid var(--line);background:#faf8f4}
+  .figuretitle{font-weight:600;color:var(--ink);display:block;margin-bottom:7px}
+  .figureactions{display:flex;gap:6px;flex-wrap:wrap}
+  .figureactions a{border:1px solid var(--line);border-radius:999px;padding:3px 8px;
+    color:var(--brand);text-decoration:none;background:#fff;font-size:11.5px}
+  .figureactions a:hover{border-color:var(--brand);background:#f5faf8}
+  .modulehint{color:var(--muted);font-size:12.5px;margin:-4px 0 12px;max-width:74ch}
+  .empty{color:#9c968b;font-size:13.5px;text-align:center;padding:34px 18px}
+  .empty .big{font-size:26px;display:block;margin-bottom:6px}
+
+  /* ---------- tabs on the right column ---------- */
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:-4px -4px 14px;padding:0 4px}
+  .tab{border:none;background:transparent;font:inherit;font-size:14px;color:var(--muted);
+    padding:9px 12px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+  .tab:hover{color:var(--brand)}
+  .tab.active{color:var(--brand);font-weight:600;border-bottom-color:var(--brand)}
+  .pane{display:none} .pane.show{display:block}
+  .inputcol .card{position:sticky;top:72px}
+  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:14px}
+  .step{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:11.5px;white-space:nowrap}
+  .step b{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--chip);
+    color:var(--muted);font-family:var(--mono);font-size:11px}
+  .step.active{color:var(--brand);font-weight:600}
+  .step.active b{background:var(--brand);color:#fff}
+  .step.done b{background:var(--accent);color:#fff}
+
+  .links{display:flex;gap:14px;margin-bottom:12px;font-size:13px}
+  .links button{background:none;border:none;padding:0;font:inherit;font-size:13px;
+    color:var(--brand);cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+  .links button:hover{color:var(--brand-deep)}
+
+  .dropzone{border:1.5px dashed var(--line);border-radius:12px;padding:18px;text-align:center;
+    cursor:pointer;transition:.15s;background:#fdfcf9}
+  .dropzone:hover,.dropzone.drag,.dropzone.selected{border-color:var(--brand);background:#faf6f0}
+  .dropzone.selected{border-style:solid}
+  .dropzone .dzicon{font-size:22px;color:var(--muted)}
+  .dropzone .dzfile{font-family:var(--mono);color:var(--brand);word-break:break-all;font-size:12.5px}
+  .dropzone .dzmeta{color:var(--muted);font-size:12px;margin-top:2px}
+  .btnrow{display:flex;gap:10px;margin-top:10px}
+  .btn{flex:1;font:inherit;font-size:13.5px;padding:8px 12px;border-radius:9px;cursor:pointer;
+    border:1px solid var(--line);background:#fff;color:var(--ink);transition:.15s}
+  .btn:hover{border-color:var(--brand)}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+  .btn.primary:hover{filter:brightness(1.06)}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .nextrow{display:flex;align-items:center;gap:12px;margin-top:14px}
+  .nextrow .spacer{flex:1}
+
+  label.field{display:flex;flex-direction:column;gap:5px;font-size:12.5px;color:var(--muted);margin-bottom:11px}
+  label.field select,label.field input{font:inherit;font-size:13.5px;color:var(--ink)}
+  label.field select,label.field input[type=text],label.field input[type=number]{
+    padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:#fdfcf9;outline:none}
+  label.field select:focus,label.field input:focus{border-color:var(--brand)}
+  .check{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);margin:7px 0}
+  .check input{accent-color:var(--brand)}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+
+  /* ---------- preview table (the reference's 输入文件 grid) ---------- */
+  .tablewrap{border:1px solid var(--line);border-radius:11px;overflow:auto;max-height:290px;margin-top:12px}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th,td{text-align:left;padding:6px 10px;border-bottom:1px solid #f0ece4;white-space:nowrap}
+  th{color:var(--muted);font-weight:600;font-size:11.5px;background:#faf8f4;position:sticky;top:0;z-index:1}
+  td.idx{color:#b3aca1;font-family:var(--mono);text-align:right;width:38px}
+  td.num{text-align:right;font-family:var(--mono)}
+  tr:last-child td{border-bottom:none}
+  .tblmeta{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:8px}
+  .tblmeta code{font-family:var(--mono);background:var(--chip);padding:1px 6px;border-radius:5px}
+
+  .banner{border-radius:11px;padding:10px 13px;margin-top:12px;font-size:13px;display:none}
+  .banner.show{display:block}
+  .banner.err{background:#fbe9e7;color:var(--danger);border:1px solid #f2c9c3}
+  .banner.ok{background:#e7f1ed;color:var(--ok);border:1px solid #c4ddd3}
+  .banner.warn{background:#fdf1dc;color:var(--warn);border:1px solid #f0dcb6}
+
+  .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:10px}
+  .metric{background:#faf8f4;border:1px solid var(--line);border-radius:11px;padding:10px 12px}
+  .metric .k{color:var(--muted);font-size:11.5px}
+  .metric .v{font-size:18px;font-weight:700;font-family:var(--mono);word-break:break-all}
+  .metric .v.good{color:var(--ok)} .metric .v.warn{color:var(--warn)} .metric .v.bad{color:var(--danger)}
+
+  .sec{background:#fff;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin-top:14px}
+  .sec h3{font-size:12px;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);
+    margin:0;padding:9px 14px;border-bottom:1px solid var(--line);background:#faf8f4}
+  .sec .body{padding:14px;overflow:auto;max-height:360px}
+  .issues{margin:0;padding-left:18px}
+  .issues li{margin:3px 0;font-size:12.5px}
+  .issues li.err{color:var(--danger)} .issues li.warn{color:var(--warn)} .issues li.info{color:var(--muted)}
+  .block{white-space:pre;font-family:var(--mono);font-size:12px;background:#faf8f4;
+    border:1px solid var(--line);border-radius:10px;padding:12px;overflow:auto;max-height:300px}
+  .spinner{display:none;align-items:center;gap:8px;color:var(--muted);font-size:13px}
+  .spinner.show{display:inline-flex}
+  .spinner .dot{width:13px;height:13px;border:2px solid var(--line);border-top-color:var(--brand);
+    border-radius:50%;animation:spin .7s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .roles{display:grid;gap:10px}
+  .rolelabel{font-size:12.5px;color:var(--muted);margin-bottom:4px}
+  .foot{color:var(--muted);font-size:12px;text-align:center;padding:6px 0 26px}
+  .imgbox img{max-width:100%;border:1px solid var(--line);border-radius:10px;display:block;background:#fff}
+  button:focus-visible,.dropzone:focus-visible,select:focus-visible,input:focus-visible{
+    outline:3px solid rgba(43,111,94,.22);outline-offset:2px}
+
+  @media(max-width:1120px){
+    .layout{grid-template-columns:1fr}
+    .navcol{order:1}.inputcol{order:2}.resultcol{order:3}
+    .rail{position:static;display:flex;gap:7px;overflow-x:auto}
+    .rail h4{display:none}
+    .railitem{min-width:180px}
+    .inputcol .card{position:static}
+  }
+  @media(max-width:720px){
+    .topbar{padding:0 12px;gap:10px}.topnav{display:none}.topbar .badge:first-of-type{display:none}
+    .layout{padding:8px;gap:8px}.card{padding:14px}.rail{border-radius:11px}
+    .two{grid-template-columns:1fr}.chartbox{min-height:250px}
+    .chartbox.gallery{grid-template-columns:1fr}
+    .nextrow{align-items:flex-end;flex-wrap:wrap}.nextrow .hint{flex:1 1 100%}
+  }
+.historybar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:12px 24px;background:var(--paper,#fff);border-bottom:1px solid var(--line,#ddd);font-size:12px}.historybar select{max-width:340px;padding:7px;border:1px solid #dce3da;border-radius:5px}.historybar button{padding:6px 10px;border:1px solid #dce3da;border-radius:5px;background:white;color:var(--brand);cursor:pointer}.historybar small{color:var(--muted)}@media(max-width:650px){.historybar{padding:10px 12px}.historybar select{max-width:100%;width:100%}}
+.reviewtoolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:12px 0}.reviewtoolbar input,.reviewtoolbar select{max-width:220px;padding:7px;border:1px solid #d9dfd5;border-radius:5px}.reviewtoolbar button,.reviewtoolbar a{cursor:pointer;font-size:12px}.reviewtoolbar input{min-width:130px}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="mark"><a href="/lab" style="color:inherit" aria-label="返回全部实验模块">BioLab</a> <span class="ver" id="version">…</span></div>
+  <nav class="topnav">
+    <a href="/lab" style="color:var(--brand)">← 全部实验模块</a>
+    <span class="on">分析工作台</span>
+      <a href="/workbench" style="color:var(--brand)">qPCR 实验工作流</a>
+  </nav>
+  <div class="spacer"></div>
+  <span class="badge">本地运行 · 数据不出本机</span>
+  <span class="badge"><a href="/" style="color:var(--brand);text-decoration:none">qPCR 分析台 →</a></span>
+</div>
+
+<section class="historybar" aria-label="本地分析记录"><a href="/history">统一历史</a><strong>本地分析记录</strong><select id="recordSelect" aria-label="选择历史分析"><option value="">正在读取…</option></select><button id="btnRestore">恢复记录</button><button id="btnBackup">下载记录备份</button><button id="btnImportRecord">导入记录备份</button><input id="recordFile" type="file" accept=".json" hidden><small id="archiveStatus" role="status">成功结果自动保存到本机；未运行的草稿仅保留当前页。</small></section>
+<div class="layout">
+  <!-- ============ left rail ============ -->
+  <div class="column navcol">
+    <div class="rail" id="rail">
+      <h4>分析模块</h4>
+    </div>
+  </div>
+
+  <!-- ============ centre: chart + results ============ -->
+  <div class="column resultcol">
+    <div class="card">
+      <div class="chartbar">
+        <span class="title" id="chartTitle">数据预览</span>
+        <div class="spacer"></div>
+        <button class="ghost" id="btnResultDownload">下载完整结果</button><button class="ghost" id="btnShare">复制结果 JSON</button>
+        <button class="ghost" id="btnClear2">清空结果</button>
+      </div>
+      <p class="modulehint" id="moduleHint"></p>
+      <div id="resultReview" role="status" aria-live="polite" hidden></div>
+      <div class="chartbox" id="chart"></div>
+      <div class="metrics" id="metrics" style="margin-top:14px"></div>
+    </div>
+    <div id="sections"></div>
+  </div>
+
+  <!-- ============ right: data / parameters ============ -->
+  <div class="column inputcol">
+    <div class="card">
+      <div class="steps" id="steps" aria-label="分析进度">
+        <span class="step active" data-step="1"><b>1</b>上传数据</span>
+        <span class="step" data-step="2"><b>2</b>设置参数</span>
+        <span class="step" data-step="3"><b>3</b>查看结果</span>
+      </div>
+      <div class="tabs" role="tablist" aria-label="分析设置">
+        <button class="tab active" role="tab" aria-selected="true" data-pane="data">分析数据</button>
+        <button class="tab" role="tab" aria-selected="false" data-pane="params">参数设置</button>
+        <button class="tab" role="tab" aria-selected="false" data-pane="format">格式说明</button>
+      </div>
+
+      <!-- --- 分析数据 --- -->
+      <div class="pane show" role="tabpanel" data-pane="data">
+        <div class="links">
+          <button id="btnFill">填充示例</button>
+          <button id="btnDownload">下载示例</button>
+          <button id="btnClear">清空</button>
+        </div>
+        <div class="roles" id="roles"></div>
+        <div class="tablewrap" id="previewWrap" style="display:none">
+          <table id="previewTable"></table>
+        </div>
+        <div class="tblmeta" id="previewMeta"></div>
+        <div class="banner" id="banner" role="status" aria-live="polite"></div>
+        <div class="nextrow">
+          <span class="hint" id="stepHint">选择文件后可执行分析</span>
+          <div class="spacer"></div>
+          <div class="spinner" id="spin" role="status" aria-live="polite"><span class="dot"></span><span>分析中…</span></div>
+          <button class="btn primary" style="flex:0 0 auto;padding:9px 26px" id="btnNext" disabled>开始分析</button>
+        </div>
+      </div>
+
+      <!-- --- 参数设置 --- -->
+      <div class="pane" role="tabpanel" data-pane="params">
+        <div id="params"></div>
+      </div>
+
+      <!-- --- 格式说明 --- -->
+      <div class="pane" role="tabpanel" data-pane="format">
+        <p class="hint">每个模块只接受固定格式的表格。下表由代码注册表生成，与实际读取逻辑同源。</p>
+        <label class="field">导入格式
+          <select id="schemaSelect"></select>
+        </label>
+        <div id="schemaDoc" style="font-size:12.5px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="foot">bioeng-qpcr · 所有分析在本机完成 · 研究用途 · 项目源码 MIT，第三方组件依各自许可</div>
+
+<script>
+"use strict";
+
+/* ------------------------------------------------------------------ *
+ * Module definitions
+ * ------------------------------------------------------------------ */
+
+const MODULES = [
+  {
+    key:"enzyme", name:"酶动力学", sub:"参数拟合 · 全局抑制比较", example:true,
+    action:"运行酶动力学分析", title:"酶动力学与机制审阅",
+    hint:"复用桌面的拟合核心。全局比较保留机制未决提示；SE 为标准误，不能当作置信区间。示例为原项目教学数据，真实数据请上传 CSV 替换。",
+    format:"CSV 列：substrate_concentration,velocity；全局抑制比较还需要 inhibitor_concentration。每行是一条初始速率观测；浓度与速率单位需在全表中一致。",
+    roles:[{id:"file",label:"酶动力学 CSV",accept:".csv",required:true}],
+    fields:[{id:"mode",label:"分析任务",type:"select",options:["inhibition","mm"],labels:{inhibition:"全局抑制模型比较",mm:"Michaelis–Menten（零抑制对照）"},value:"inhibition"}], endpoint:"/api/enzyme",
+  },
+  {
+    key:"ferment", name:"发酵动力学", sub:"Monod · 参数可辨识性", example:true,
+    action:"拟合与检查参数", title:"发酵曲线与参数可信度",
+    hint:"一起查看 Monod 参数、95% 置信区间、参数相关性和观测残差。输入单位为 h、g/L。示例是原项目教学数据，不代表实测发酵。",
+    format:"CSV 列：time,biomass,substrate。单位分别为 h、g/L、g/L；时间需递增。本模型适用于批次培养，未描述补料、产物抑制或菌体死亡。",
+    roles:[{id:"file",label:"发酵时间序列 CSV",accept:".csv",required:true}],fields:[],endpoint:"/api/ferment",
+  },
+  {
+    key:"fba", name:"代谢通量 FBA", sub:"基线 / 情景 · 网络检查", example:true,
+    action:"运行模型分析", title:"代谢模型与情景比较",
+    hint:"上传模型，比较基线与修改边界后的结果。情景约束示例：EX_o2_e,0,1000（关闭氧摄入，仅适用于含该反应的模型）；多个约束用分号分隔，最多 20 条。通量单位沿用模型。",
+    format:"上传 SBML（.xml/.sbml）或 COBRA JSON（.json）。目标反应与情景反应必须存在于模型。公开示例来自 COBRApy 0.31.1 的 E. coli core 教程模型；真实研究需要上传对应生物与培养条件的模型。",
+    roles:[{id:"file",label:"代谢模型文件",accept:".xml,.sbml,.json",required:true}],
+    fields:[
+      {id:"action",label:"分析任务",type:"select",options:["fba","blocked","dead_ends"],labels:{fba:"FBA 基线 / 情景比较",blocked:"阻塞反应检查",dead_ends:"死端代谢物检查"},value:"fba"},
+      {id:"objective",label:"目标反应 ID（留空沿用模型）",type:"text",value:""},
+      {id:"direction",label:"优化方向",type:"select",options:["max","min"],labels:{max:"最大化",min:"最小化"},value:"max"},
+      {id:"bounds",label:"情景边界：反应 ID,下界,上界（可选）",type:"text",value:""},
+    ],endpoint:"/api/fba",
+  },
+  {
+    key:"preview_csv", name:"数据表预览", sub:"CSV 格式校验",
+    action:"开始预览",
+    title:"数据预览与导入校验",
+    hint:"上传 CSV，软件会报告探测到的编码、分隔符、列类型，以及每个结构性问题所在的列与行。",
+    schema:"qpcr_tidy",
+    roles:[{id:"file", label:"数据文件", accept:".csv,.tsv,.txt", required:true}],
+    fields:[],
+    endpoint:"/api/preview",
+  },
+  {
+    key:"preview_image", name:"图片预览", sub:"多格式 · 伪彩 · 凝胶增强",
+    example:true,
+    action:"生成预览",
+    title:"图片预览",
+    hint:"支持 PNG / JPEG / TIFF（多页）/ GIF / BMP / WebP / ICO / PSD / TGA / SVG 等；单通道数据可按伪彩渲染并做对比度拉伸。",
+    roles:[{id:"file", label:"图片文件", accept:".png,.jpg,.jpeg,.tif,.tiff,.bmp,.gif,.webp,.ico,.psd,.tga,.ppm,.svg", required:true}],
+    fields:[
+      {id:"palette", label:"单通道伪彩表", type:"select",
+       options:["gray","green","red","blue","magenta","cyan","yellow","fire"], value:"gray"},
+      {id:"gamma", label:"Gamma（>1 提亮中间调）", type:"number", value:1.0, step:0.1},
+      {id:"frame", label:"帧序号（多页 TIFF / GIF）", type:"number", value:0, step:1},
+      {id:"invert", label:"反相（荧光/凝胶常用）", type:"check", value:false},
+      {id:"auto_contrast", label:"自动对比度拉伸", type:"check", value:true},
+    ],
+    endpoint:"/api/image",
+  },
+  {
+    key:"potency", name:"效价分析", sub:"IC50 / EC50",
+    example:true,
+    action:"开始拟合",
+    title:"IC50 / EC50 测定",
+    hint:"剂量-反应曲线拟合。同时给出「相对效价」（拟合窗口中点）与「绝对效价」（达到对照指定比例响应的浓度）——下平台不为零时两者不同。",
+    schema:"dose_response",
+    roles:[{id:"file", label:"剂量-反应数据文件", accept:".csv,.tsv,.txt", required:true}],
+    fields:[
+      {id:"kind", label:"报告量", type:"select", options:["auto","IC50","EC50"], labels:{auto:"自动（按曲线方向）"}, value:"auto"},
+      {id:"layout", label:"数据布局", type:"select", options:["auto","long","matrix"], labels:{auto:"自动识别",long:"长格式",matrix:"矩阵格式"}, value:"auto"},
+      {id:"normalize", label:"归一化", type:"select", options:["none","percent_of_control"], labels:{none:"保持原始响应",percent_of_control:"转换为对照百分比"}, value:"none"},
+      {id:"ci_method", label:"置信区间", type:"select", options:["asymptotic","bootstrap"], labels:{asymptotic:"渐近（协方差矩阵）",bootstrap:"Bootstrap（重采样）"}, value:"asymptotic"},
+      {id:"confidence", label:"置信水平", type:"number", value:0.95, step:0.01},
+      {id:"control_fraction", label:"绝对效价的对照比例", type:"number", value:0.5, step:0.05},
+      {id:"control_response", label:"实测未处理/溶剂对照响应（可选）", type:"number", value:"", step:"any"},
+      {id:"validate", label:"运行 POT-001 ~ POT-011 审计规则", type:"check", value:true},
+      {id:"publication", label:"生成论文级 SVG / PDF / 300 dpi PNG", type:"check", value:true},
+    ],
+    endpoint:"/api/potency",
+  },
+  {
+    key:"docking", name:"分子对接", sub:"刚性对接 · 打分分解",
+    example:true,
+    action:"开始对接",
+    title:"分子对接",
+    hint:"刚性配体对接，蒙特卡洛模拟退火或确定性网格搜索。实验性简化评分仅用于同一输入和设置下的姿势排序，不代表实测亲和力或结合自由能。",
+    roles:[
+      {id:"receptor", label:"受体文件（蛋白 PDB）", accept:".pdb,.ent", required:true},
+      {id:"ligand", label:"配体文件（小分子 PDB）", accept:".pdb,.ent", required:false},
+    ],
+    fields:[
+      {id:"n_runs", label:"独立运行次数", type:"number", value:4, step:1},
+      {id:"n_steps", label:"每次运行步数", type:"number", value:1500, step:100},
+      {id:"top_n", label:"输出姿势数", type:"number", value:5, step:1},
+      {id:"rmsd_threshold", label:"姿势去重 RMSD (Å)", type:"number", value:2.0, step:0.5},
+      {id:"seed", label:"随机种子", type:"number", value:1, step:1},
+      {id:"box_center", label:"搜索盒中心 x,y,z（留空为自动）", type:"text", value:""},
+      {id:"box_size", label:"搜索盒半径 Å", type:"number", value:10, step:1},
+      {id:"split_from_receptor", label:"从受体文件中提取配体（忽略配体文件）", type:"check", value:false},
+      {id:"validate", label:"运行 DCK 审计规则", type:"check", value:true},
+      {id:"publication", label:"生成论文级 SVG / PDF / 300 dpi PNG", type:"check", value:true},
+    ],
+    endpoint:"/api/dock",
+  },
+  {
+    key:"sequence", name:"测序比对", sub:"读长比对 · 变异检测",
+    example:true,
+    action:"开始比对",
+    title:"测序结果比对",
+    hint:"把 Sanger 读长映射到参考序列，裁掉引物与低质量末端，然后检出变异并运行 SEQ-00x 审计规则。所有坐标都在参考坐标系中。",
+    roles:[
+      {id:"query", label:"待测序列（AB1 / FASTA / FASTQ / 纯文本）", accept:".ab1,.abi,.fasta,.fa,.fna,.fastq,.fq,.seq,.txt", required:true},
+      {id:"reference", label:"参考序列（FASTA）", accept:".fasta,.fa,.fna,.seq,.txt", required:true},
+    ],
+    fields:[
+      {id:"read_index", label:"读长序号（0 起）", type:"number", value:0, step:1},
+      {id:"primer_5", label:"5' 引物序列", type:"text", value:""},
+      {id:"primer_3", label:"3' 引物序列", type:"text", value:""},
+      {id:"primer_mismatch", label:"引物定位允许错配", type:"number", value:2, step:1},
+      {id:"trim_quality", label:"按质量值裁剪低质量末端（需 FASTQ）", type:"check", value:false},
+      {id:"min_q", label:"质量阈值 Q", type:"number", value:20, step:1},
+      {id:"quality_window", label:"滑窗长度", type:"number", value:10, step:1},
+      {id:"min_identity", label:"一致性阈值 SEQ-001", type:"number", value:0.9, step:0.01},
+      {id:"coding", label:"按编码序列处理（启用移码检查）", type:"check", value:false},
+      {id:"variants", label:"检测并列出变异", type:"check", value:true},
+      {id:"publication", label:"生成论文级 SVG / PDF / 300 dpi PNG", type:"check", value:true},
+    ],
+    endpoint:"/api/align",
+  },
+];
+
+/* ------------------------------------------------------------------ *
+ * Small helpers
+ * ------------------------------------------------------------------ */
+
+const $ = (id) => document.getElementById(id);
+const el = (tag, attrs, children) => {
+  const node = document.createElement(tag);
+  if (attrs) for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") node.className = v;
+    else if (k === "text") node.textContent = v;
+    else if (k === "html") node.innerHTML = v;
+    else if (v !== null && v !== undefined) node.setAttribute(k, v);
+  }
+  for (const child of children || []) if (child) node.appendChild(child);
+  return node;
+};
+const num = (value, digits) => {
+  if (value === null || value === undefined || value === "") return "—";
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "—";
+  if (n !== 0 && (Math.abs(n) < 1e-3 || Math.abs(n) >= 1e5))
+    return n.toExponential(3);
+  return n.toFixed(digits === undefined ? 4 : digits);
+};
+const pct = (value) => (Number.isFinite(Number(value)) ? (value * 100).toFixed(2) + "%" : "—");
+
+let current = MODULES[0];
+let files = {};                // per-role File objects
+let lastPayload = null;
+let running = false;
+let currentRecordId = null;
+let currentImported = false;
+const drafts = new Map();
+
+/* ------------------------------------------------------------------ *
+ * Render: rail
+ * ------------------------------------------------------------------ */
+
+function buildRail() {
+  const rail = $("rail");
+  const auxiliary = new Set(['preview_csv','preview_image','docking','sequence']);
+  const tools = el('details', {}, [el('summary', {text:'辅助 / 旧版工具'})]);
+  let primaryIndex = 0;
+  MODULES.forEach((module) => {
+    const button = el("button", { class: "railitem", type: "button" }, [
+      el("span", { class: "railicon", text: auxiliary.has(module.key) ? '·' : String(++primaryIndex) }),
+      el("span", {}, [
+        el("span", { class: "nm", text: module.name }),
+        el("span", { class: "sub", text: module.sub }),
+      ]),
+    ]);
+    button.dataset.key = module.key;
+    button.addEventListener("click", () => select(module.key));
+    (auxiliary.has(module.key) ? tools : rail).appendChild(button);
+  });
+  rail.appendChild(tools);
+}
+
+function rememberDraft() {
+  drafts.set(current.key, {files:{...files}, parameters:Object.fromEntries(current.fields.map(f=>[f.id,fieldValue(f)])), result:lastPayload, recordId:currentRecordId, imported:currentImported});
+}
+function select(key) {
+  if (running) {history.replaceState(null,'','#'+current.key);showBanner('warn','分析正在运行，请等待结果后切换。');return}
+  if ($('params').children.length || Object.keys(files).length || lastPayload) rememberDraft();
+  current = MODULES.find((m) => m.key === key) || MODULES[0];
+  document.querySelectorAll('#rail details').forEach(node=>node.open=Array.from(node.querySelectorAll('[data-key]')).some(button=>button.dataset.key===current.key));
+  history.replaceState(null, '', location.pathname + '#' + current.key);
+  document.querySelectorAll(".railitem").forEach((node) =>
+    node.classList.toggle("active", node.dataset.key === current.key));
+  $("chartTitle").textContent = current.title;
+  $("moduleHint").textContent = current.hint;
+  $("btnNext").textContent = current.action;
+  files = {};
+  buildRoles();
+  buildFields();
+  clearResults();
+  if (current.schema) {
+    $("schemaSelect").value = current.schema;
+    renderSchemaDoc(current.schema);
+  } else renderSchemaDoc('');
+  $("btnFill").disabled = !(current.schema || current.example);
+  $("btnDownload").disabled = !(current.schema || current.example);
+  const saved = drafts.get(current.key);
+  if (saved) applyRecordState(saved.files, saved.parameters, saved.result, saved.recordId, saved.imported);
+  hideBanner();
+  refreshRecords();
+  updateReadiness();
+}
+
+function updateReadiness() {
+  const ready = current.roles.every((role) => !role.required || files[role.id]);
+  $("btnNext").disabled = running || !ready;
+  $("stepHint").textContent = running ? "正在处理，请稍候…"
+    : lastPayload ? "分析完成，可查看左侧结果或调整后重新运行"
+    : ready ? "数据已就绪，可调整参数后开始分析" : "请先上传所有必填文件";
+  const active = lastPayload ? 3 : ready ? 2 : 1;
+  document.querySelectorAll(".step").forEach((node) => {
+    const step = Number(node.dataset.step);
+    node.classList.toggle("active", step === active);
+    node.classList.toggle("done", step < active);
+  });
+}
+
+/* ------------------------------------------------------------------ *
+ * Render: file roles + parameters
+ * ------------------------------------------------------------------ */
+
+function buildRoles() {
+  const container = $("roles");
+  container.innerHTML = "";
+  current.roles.forEach((role) => {
+    const drop = el("div", { class: "dropzone", role: "button", tabindex: "0",
+      "aria-label": "选择" + role.label, "data-role": role.id });
+    drop.appendChild(el("div", { class: "dzicon", text: "⇧" }));
+    drop.appendChild(el("div", { class: "dzfile", text: "点击或拖拽" + role.label }));
+    drop.appendChild(el("div", { class: "dzmeta", text: role.accept + (role.required ? "（必填）" : "（可选）") }));
+    const input = el("input", { type: "file", accept: role.accept, style: "display:none" });
+    input.addEventListener("change", () => {
+      if (input.files.length) setFile(role.id, input.files[0], drop);
+    });
+    drop.appendChild(input);
+    drop.addEventListener("click", () => input.click());
+    drop.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault(); input.click();
+      }
+    });
+    drop.addEventListener("dragover", (event) => {
+      event.preventDefault(); drop.classList.add("drag");
+    });
+    drop.addEventListener("dragleave", () => drop.classList.remove("drag"));
+    drop.addEventListener("drop", (event) => {
+      event.preventDefault(); drop.classList.remove("drag");
+      if (event.dataTransfer.files.length)
+        setFile(role.id, event.dataTransfer.files[0], drop);
+    });
+    container.appendChild(el("div", {}, [
+      el("div", { class: "rolelabel", text: role.label }),
+      drop,
+    ]));
+  });
+}
+
+function setFile(roleId, file, drop) {
+  if (running) return;
+  files[roleId] = file;
+  clearResults();
+  drop.classList.add("selected");
+  drop.querySelector(".dzicon").textContent = "✓";
+  drop.querySelector(".dzfile").textContent = file.name;
+  drop.querySelector(".dzmeta").textContent =
+    (file.size / 1024).toFixed(1) + " KB · " + (file.type || "未知类型");
+  hideBanner();
+  updateReadiness();
+}
+
+function buildFields() {
+  const container = $("params");
+  container.innerHTML = "";
+  if (!current.fields.length) {
+    container.appendChild(el("p", { class: "hint", text:"该模块没有可调参数。" }));
+    return;
+  }
+  const grid = el("div", { class: "two" });
+  current.fields.forEach((field) => {
+    let input;
+    if (field.type === "select") {
+      input = el("select", { id: "f_" + field.id });
+      field.options.forEach((option) =>
+        input.appendChild(el("option", { value: option,
+          text: (field.labels && field.labels[option]) || option })));
+      input.value = field.value;
+    } else if (field.type === "check") {
+      input = el("input", { type: "checkbox", id: "f_" + field.id });
+      input.checked = !!field.value;
+    } else {
+      input = el("input", { type: field.type === "number" ? "number" : "text",
+        id: "f_" + field.id, step: field.step || "any" });
+      input.value = field.value;
+    }
+    const wrapper = el("label", { class: field.type === "check" ? "check" : "field" });
+    if (field.type === "check") {
+      wrapper.appendChild(input);
+      wrapper.appendChild(el("span", { text: field.label }));
+    } else {
+      wrapper.appendChild(el("span", { text: field.label }));
+      wrapper.appendChild(input);
+    }
+    grid.appendChild(wrapper);
+  });
+  container.appendChild(grid);
+  container.querySelectorAll('input,select').forEach(node=>node.addEventListener('input',()=>{clearResults();updateReadiness()}));
+}
+
+function fieldValue(field) {
+  const node = $("f_" + field.id);
+  if (!node) return field.value;
+  if (field.type === "check") return node.checked ? "1" : "0";
+  return node.value;
+}
+
+/* ------------------------------------------------------------------ *
+ * Results rendering
+ * ------------------------------------------------------------------ */
+
+function clearResults() {
+  $("resultReview").hidden = true;
+  $("resultReview").replaceChildren();
+  $("chart").classList.remove("gallery");
+  $("chart").innerHTML = "";
+  $("chart").appendChild(el("div", { class: "empty" }, [
+    el("span", { class: "big", text: "▧" }),
+    el("span", { text: current.schema || current.example
+      ? "上传文件或点击「填充示例」查看数据结构"
+      : "请上传文件开始分析" }),
+  ]));
+  $("metrics").innerHTML = "";
+  $("sections").innerHTML = "";
+  $("previewWrap").style.display = "none";
+  $("previewMeta").innerHTML = "";
+  lastPayload = null;
+  currentRecordId = null;
+  currentImported = false;
+  $('recordSelect').value='';
+  $('archiveStatus').textContent='当前输入尚未分析和存档；历史记录保留，可随时恢复。';
+  history.replaceState(null,'',location.pathname+'#'+current.key);
+  hideBanner();
+}
+
+function showBanner(kind, text) {
+  const banner = $("banner");
+  banner.className = "banner show " + kind;
+  banner.textContent = text;
+}
+
+function showAuditBanner(checks, action) {
+  const failed = checks.filter((check) => !check.passed);
+  const errors = failed.filter((check) => ["error", "failure"].includes(check.severity));
+  if (errors.length) {
+    showBanner("err", action + "，" + errors.length + " 项阻断错误，"
+      + (failed.length - errors.length) + " 项警告。");
+  } else if (failed.length) {
+    showBanner("warn", action + "，无阻断错误，" + failed.length + " 项警告。");
+  } else if (checks.length) {
+    showBanner("ok", action + "，审计规则全部通过。");
+  } else {
+    showBanner("warn", action + "，未执行审计规则。");
+  }
+}
+
+function hideBanner() {
+  $("banner").className = "banner";
+}
+
+function metric(label, value, tone) {
+  return el("div", { class: "metric" }, [
+    el("div", { class: "k", text: label }),
+    el("div", { class: "v" + (tone ? " " + tone : ""), text: value }),
+  ]);
+}
+
+function section(title, bodyNode) {
+  const body = el("div", { class: "body" });
+  body.appendChild(bodyNode);
+  return el("div", { class: "sec" }, [el("h3", { text: title }), body]);
+}
+
+function dataTable(header, rows, options) {
+  const opts = options || {};
+  const table = el("table");
+  const head = el("tr");
+  head.appendChild(el("th", { text: "#" }));
+  header.forEach((name, index) =>
+    head.appendChild(el("th", { class: opts.numeric && opts.numeric.includes(name) ? "num" : "",
+      text: name })));
+  table.appendChild(el("thead", {}, [head]));
+  const body = el("tbody");
+  rows.forEach((row, index) => {
+    const tr = el("tr");
+    tr.appendChild(el("td", { class: "idx", text: String(index + 1) }));
+    row.forEach((cell, cellIndex) => {
+      const name = header[cellIndex];
+      const isNum = opts.numeric && opts.numeric.includes(name);
+      tr.appendChild(el("td", { class: isNum ? "num" : "",
+        text: cell === null || cell === undefined ? "" : String(cell) }));
+    });
+    body.appendChild(tr);
+  });
+  table.appendChild(body);
+  return table;
+}
+
+function issuesList(issues) {
+  const list = el("ul", { class: "issues" });
+  issues.forEach((issue) => {
+    const severity = issue.severity || "error";
+    const where = [];
+    if (issue.row !== null && issue.row !== undefined) where.push("第 " + issue.row + " 行");
+    if (issue.column) where.push("列 " + issue.column);
+    const prefix = where.length ? "[" + where.join("，") + "] " : "";
+    list.appendChild(el("li", { class: severity,
+      text: prefix + issue.message + "  [" + issue.code + "]" }));
+  });
+  return list;
+}
+
+function setChart(plot) {
+  setCharts(plot ? [{ title: "分析图表", data_uri: plot }] : []);
+}
+
+function setCharts(plots) {
+  const box = $("chart");
+  box.innerHTML = "";
+  box.classList.toggle("gallery", !!plots.length);
+  if (plots.length) {
+    plots.forEach((plot, index) => {
+      const title = plot.title || "分析图 " + (index + 1);
+      const actions = el("div", { class: "figureactions" });
+      (plot.downloads || []).forEach((download) => actions.appendChild(
+        el("a", { href: download.data_uri, download: download.filename,
+          text: "下载 " + download.label,
+          "aria-label": "下载 " + title + " " + download.label })
+      ));
+      box.appendChild(el("figure", { class: "figurecard" }, [
+        el("img", { src: plot.data_uri, alt: title }),
+        el("figcaption", {}, [
+          el("span", { class: "figuretitle", text: title }),
+          actions,
+        ]),
+      ]));
+    });
+  } else {
+    box.appendChild(el("div", { class: "empty" }, [
+      el("span", { class: "big", text: "▤" }),
+      el("span", { text: "本次分析没有可绘制的图表；数值结果见下方。" }),
+    ]));
+  }
+}
+
+function renderPreviewTable(payload) {
+  const header = payload.header || [];
+  const rows = payload.rows || [];
+  $("previewTable").innerHTML = "";
+  if (!header.length) { $("previewWrap").style.display = "none"; return; }
+  const table = dataTable(header, rows, {});
+  $("previewTable").replaceWith(table);
+  table.id = "previewTable";
+  $("previewWrap").style.display = "block";
+
+  const meta = $("previewMeta");
+  meta.innerHTML = "";
+  const chips = [
+    ["编码", payload.encoding],
+    ["分隔符", JSON.stringify(payload.delimiter)],
+    ["数据行", payload.rows_total],
+    ["列数", header.length],
+    ["匹配格式", payload.schema ? payload.schema + "（" + pct(payload.schema_score) + "）" : "未匹配到内置格式"],
+  ];
+  chips.forEach(([label, value]) => {
+    meta.appendChild(el("span", {}, [
+      document.createTextNode(label + "："),
+      el("code", { text: String(value) }),
+    ]));
+  });
+}
+
+/* ------------------------------------------------------------------ *
+ * Per-module result renderers
+ * ------------------------------------------------------------------ */
+
+const RENDERERS = {
+  preview_csv(payload) {
+    renderPreviewTable(payload);
+    $("metrics").appendChild(metric("数据行", String(payload.rows_total)));
+    $("metrics").appendChild(metric("错误", String(payload.errors), payload.errors ? "bad" : "good"));
+    $("metrics").appendChild(metric("警告", String(payload.warnings), payload.warnings ? "warn" : "good"));
+    if (payload.issues.length)
+      $("sections").appendChild(section("问题清单（" + payload.issues.length + "）",
+        issuesList(payload.issues)));
+    $("sections").appendChild(section("文本报告", el("div", { class: "block", text: payload.text })));
+    setChart("");
+    showBanner(payload.errors ? "err" : "ok",
+      payload.errors ? "发现 " + payload.errors + " 个错误，需修正后才能分析。"
+                     : "结构检查通过" + (payload.warnings ? "，有 " + payload.warnings + " 条警告。" : "。"));
+  },
+
+  preview_image(payload) {
+    const info = payload.info;
+    $("metrics").appendChild(metric("格式", info.format));
+    $("metrics").appendChild(metric("尺寸", info.width + "×" + info.height));
+    $("metrics").appendChild(metric("模式", info.mode));
+    $("metrics").appendChild(metric("帧数", String(info.n_frames)));
+    if (payload.rendered) {
+      setCharts(payload.plots || [
+        { title: "图片预览", data_uri: payload.data_uri },
+      ]);
+    } else {
+      setChart("");
+    }
+    const rows = [
+      ["格式", info.format], ["读取方式", info.renderer], ["尺寸", info.width + "×" + info.height],
+      ["百万像素", num(info.megapixels, 3)], ["模式", info.mode],
+      ["位深", info.bits_per_channel === null ? "未知" : info.bits_per_channel + " bit/通道"],
+      ["通道数", info.channels === null ? "未知" : info.channels],
+      ["帧数", info.n_frames], ["动画/堆栈", info.is_animated ? "是" : "否"],
+      ["DPI", info.dpi ? info.dpi[0] + " × " + info.dpi[1] : "未记录"],
+      ["透明通道", info.has_alpha ? "有" : "无"],
+      ["ICC 配置", info.has_icc_profile ? "有" : "无"],
+      ["EXIF", info.has_exif ? "有" : "无"],
+      ["矢量图", info.is_vector ? "是" : "否"],
+      ["文件大小", info.file_size + " bytes"],
+      ["SHA256", info.sha256.slice(0, 16) + "…"],
+    ];
+    if (payload.rendered) {
+      rows.push(["渲染伪彩", payload.palette]);
+      rows.push(["渲染尺寸", payload.thumbnail_size.join("×")]);
+      rows.push(["处理步骤", payload.enhancements.join("、") || "仅缩放"]);
+    }
+    $("sections").appendChild(section("图片元数据",
+      dataTable(["属性", "值"], rows)));
+    const notes = (info.warnings || []).concat(payload.warnings || []);
+    if (notes.length)
+      $("sections").appendChild(section("提示",
+        el("ul", { class: "issues" }, notes.map((text) => el("li", { class: "warn", text })))));
+    showBanner(info.preview_available ? "ok" : "warn",
+      info.preview_available ? "已读取像素并生成预览。" : "仅读取元数据，无法生成像素预览。");
+  },
+
+  potency(payload) { renderPotencyReview(payload); },
+  enzyme(payload) { renderScientific(payload); },
+  ferment(payload) { renderScientific(payload); },
+  fba(payload) { renderScientific(payload); },
+
+  docking(payload) {
+    const review = payload.review && payload.review.version === 1 ? payload.review : null;
+    $("metrics").appendChild(metric("受体原子", String(payload.receptor.n_atoms)));
+    $("metrics").appendChild(metric("配体原子", String(payload.ligand.n_atoms)));
+    $("metrics").appendChild(metric("最优经验评分", num(payload.poses[0] ? payload.poses[0].score : null)));
+    $("metrics").appendChild(metric("接受率", payload.stats.seed === null ? "不适用（网格）" : pct(payload.stats.acceptance_rate)));
+    $("metrics").appendChild(metric("搜索诊断", review ? review.search_label : "旧版记录，待复核", "warn"));
+    $("metrics").appendChild(metric("使用判断", review ? review.label : "需重新运行", review && review.status === "blocked" ? "bad" : "warn"));
+    const reviewText = review ? [review.summary, review.interpretation] : [
+      "本记录使用旧版判据，尚无新版复核结论。原始文件、参数和历史结果保持不变。",
+      "请重新运行，生成新的复核记录；旧版评分差检查不能证明搜索收敛。",
+    ];
+    $("resultReview").hidden = false;
+    $("resultReview").replaceChildren(section("使用前请审阅", el("div", {}, [
+      el("p", {text: reviewText.join(" ")}),
+      ...(review ? [el("ol", {class: "issues"}, review.next_steps.map(text => el("li", {text})))] : []),
+    ])));
+
+    const header = ["排名", "经验评分", "范德华项", "静电项", "氢键项",
+                    "疏水项", "去溶剂项", "距最佳姿势 RMSD (Å)"];
+    const rows = payload.poses.map((pose) => [
+      pose.rank, num(pose.score, 3), num(pose.vdw, 3), num(pose.electrostatic, 3),
+      num(pose.hbond, 3), num(pose.hydrophobic, 3), num(pose.desolvation, 3),
+      num(pose.rmsd_to_best, 2),
+    ]);
+    $("sections").appendChild(section("姿势排名（仅作当前设置下的经验评分排序）",
+      dataTable(header, rows, { numeric: header.slice(1) })));
+
+    const info = [
+      "评分解释：" + (payload.score_interpretation || "实验性简化评分，不代表实测亲和力或结合自由能。"),
+      "打分函数：" + payload.scoring,
+      "权重：" + payload.weights.map((w) => num(w, 3)).join(", "),
+      "搜索盒中心：" + payload.box.center.map((v) => num(v, 2)).join(", "),
+      "搜索盒半径：" + num(payload.box.half_size[0], 2) + " Å",
+      "采样：" + payload.stats.iterations + " 步，接受 " + payload.stats.accepted
+        + " 次，种子 " + (payload.stats.seed === null ? "（网格，无种子）" : payload.stats.seed),
+      payload.stats.message,
+    ];
+    $("sections").appendChild(section("运行信息",
+      el("div", { class: "block", text: info.join("\n") })));
+
+    if (payload.validation.length) {
+      const list = el("ul", { class: "issues" });
+      payload.validation.forEach((check) => {
+        if (!review && check.rule_id === "DCK-004") {
+          list.appendChild(el("li", {class: "warn", text: "DCK-004 旧版搜索检查待复核；原检查保留在完整结果中，请重新运行。"}));
+          return;
+        }
+        const severity = check.passed ? "info"
+          : (check.severity === "error" ? "err" : "warn");
+        list.appendChild(el("li", { class: severity,
+          text: check.rule_id + " " + (check.passed ? "通过" : "未通过") + " — " + check.message }));
+      });
+      $("sections").appendChild(section("审计规则（DCK）", list));
+    }
+    setCharts(payload.plots || (payload.plot
+      ? [{ title: "对接分析", data_uri: payload.plot }] : []));
+    showBanner(review && review.status === "blocked" ? "err" : "warn",
+      review ? review.summary : "历史结果已恢复；旧版搜索判据需要重新运行复核。");
+  },
+
+  sequence(payload) {
+    const aln = payload.alignment;
+    $("metrics").appendChild(metric("一致性", pct(aln.identity), aln.identity >= 0.99 ? "good" : "warn"));
+    $("metrics").appendChild(metric("相似性", pct(aln.similarity)));
+    $("metrics").appendChild(metric("比对长度", String(aln.length)));
+    $("metrics").appendChild(metric("变异数", String(payload.variants.length),
+      payload.variants.length ? "warn" : "good"));
+    $("metrics").appendChild(metric("参考位置", aln.ref_start + "–" + aln.ref_end));
+    $("metrics").appendChild(metric("读长方向",
+      aln.query_orientation === "reverse_complement" ? "反向互补" : "正向"));
+
+    const rows = payload.variants.map((variant) => [
+      variant.type, variant.ref_position, variant.ref_allele || "—",
+      variant.alt_allele || "—", variant.length,
+      variant.quality === null ? "—" : variant.quality,
+      variant.in_low_complexity ? "是" : "否",
+    ]);
+    if (rows.length) {
+      $("sections").appendChild(section("变异（" + rows.length + "）",
+        dataTable(["type","ref_position","ref_allele","alt_allele","length","quality",
+                   "in_low_complexity"], rows, { numeric: ["ref_position","length","quality"] })));
+    } else {
+      $("sections").appendChild(section("变异", el("div", { class: "block", text: "未检出变异。" })));
+    }
+
+    const width = 68;
+    const lines = [];
+    for (let index = 0; index < aln.aligned_query.length; index += width) {
+      const queryPart = aln.aligned_query.slice(index, index + width);
+      const refPart = aln.aligned_reference.slice(index, index + width);
+      let marks = "";
+      for (let position = 0; position < queryPart.length; position += 1)
+        marks += queryPart[position] === refPart[position] ? "|" : " ";
+      lines.push("q " + queryPart);
+      lines.push("  " + marks);
+      lines.push("r " + refPart);
+      lines.push("");
+    }
+    $("sections").appendChild(section("比对结果（CIGAR " + aln.cigar + "）",
+      el("div", { class: "block", text: lines.join("\n") })));
+
+    if (payload.validation.length) {
+      const list = el("ul", { class: "issues" });
+      payload.validation.forEach((check) => {
+        const severity = check.passed ? "info"
+          : (check.severity === "error" ? "err" : "warn");
+        list.appendChild(el("li", { class: severity,
+          text: check.rule_id + " " + (check.passed ? "通过" : "未通过") + " — " + check.message }));
+      });
+      $("sections").appendChild(section("审计规则（SEQ）", list));
+    }
+    if (payload.notes.length)
+      $("sections").appendChild(section("裁剪记录",
+        el("div", { class: "block", text: payload.notes.join("\n") })));
+    setCharts(payload.plots || (payload.plot
+      ? [{ title: "测序质控", data_uri: payload.plot }] : []));
+    showAuditBanner(payload.validation, "比对完成");
+  },
+};
+
+/* ------------------------------------------------------------------ *
+ * Actions
+ * ------------------------------------------------------------------ */
+
+function renderScientific(payload) {
+  setCharts(payload.plots||[]);
+  (payload.metrics||[]).forEach(([label,value])=>$('metrics').appendChild(metric(label,typeof value==='number'&&!Number.isInteger(value)?num(value):String(value??'不可估计'))));
+  if(payload.record_id)$('sections').appendChild(section('完整数值导出',el('a',{class:'ghost',href:'/api/lab/records/'+payload.record_id+'/results.csv',download:'analysis-results.csv',text:'下载全量 CSV'})));
+  (payload.tables||[]).forEach(item=>{
+    const columns=Array.from(new Set([...(item.columns||[]),...item.rows.flatMap(row=>Object.keys(row))]));
+    const rows=item.rows.slice(0,200).map(row=>columns.map(key=>typeof row[key]==='number'?num(row[key]):row[key]??'—'));
+    const labels={model:'模型',aicc:'AICc',delta_aicc:'ΔAICc',bic:'BIC',akaike_weight:'Akaike 权重',converged:'收敛',parameter:'参数',estimate:'估计值',standard_error:'标准误',ci_low:'95% CI 下限',ci_high:'95% CI 上限',reaction:'反应 ID',baseline_flux:'基线通量',scenario_flux:'当前通量',difference:'差值',time:'时间 (h)',biomass:'生物量 (g/L)',biomass_fit:'生物量拟合',biomass_residual:'生物量残差',substrate:'底物',substrate_fit:'底物拟合',substrate_residual:'底物残差',observed:'观测速率',fitted:'拟合速率',residual:'残差',metabolite:'代谢物 ID',type:'类型'};
+    labels.baseline_status='基线状态';labels.scenario_status='情景状态';
+    const host=el('div',{},[dataTable(columns.map(key=>labels[key]||key),rows)]);
+    if(item.rows.length>200)host.appendChild(el('p',{class:'hint',text:'页面显示前 200 行；完整数值保存在 CSV 和记录备份中。'}));
+    $('sections').appendChild(section(item.title,host));
+  });
+  const checks=payload.validation||[], warnings=payload.warnings||[];
+  if(checks.length)$('sections').appendChild(section('质量检查',dataTable(['规则','通过','说明'],checks.map(c=>[c.rule_id,c.passed?'是':'否',c.message]))));
+  if(warnings.length)$('sections').appendChild(section('审阅提示',el('ul',{class:'issues'},warnings.map(text=>el('li',{class:'warn',text})))));
+  if(warnings.length)showBanner('warn','计算完成，请审阅质量检查与模型适用条件。');else showAuditBanner(checks,'计算完成');
+}
+
+function renderPotencyReview(payload) {
+  const all=payload.results;
+  const labels={passed:'检查通过',review:'需复核',failed:'拟合失败',unassessed:'未审计'};
+  const state=row=>row.review_status || (row.error?'failed':'unassessed');
+  const ok=all.filter(row=>!row.error);
+  [['化合物总数',all.length],['计算成功',ok.length],['检查通过',all.filter(r=>state(r)==='passed').length],['需复核 / 失败',all.filter(r=>['review','failed'].includes(state(r))).length]].forEach(([label,value])=>$('metrics').appendChild(metric(label,String(value))));
+  const search=el('input',{type:'search','aria-label':'搜索化合物',placeholder:'搜索化合物…'});
+  const filter=el('select',{'aria-label':'审阅状态筛选'});
+  [['all','全部状态'],['attention','需复核或失败'],['passed','检查通过'],['unassessed','未审计']].forEach(([value,text])=>filter.appendChild(el('option',{value,text})));
+  const choices=el('select',{'aria-label':'选择审阅化合物'});
+  const graph=el('button',{class:'ghost',text:'生成所选曲线'});
+  const previous=el('button',{class:'ghost',text:'上一页'}), next=el('button',{class:'ghost',text:'下一页'});
+  const pageLabel=el('span',{class:'hint'}), tableHost=el('div'), detailHost=el('div');
+  const controls=el('div',{class:'reviewtoolbar'},[search,filter,choices,graph]);
+  if(payload.record_id)controls.appendChild(el('a',{class:'ghost',href:'/api/lab/records/'+payload.record_id+'/potency/results.csv',download:'potency-results.csv',text:'下载全量 CSV'}));
+  $('sections').appendChild(section('批量结果审阅',el('div',{},[
+    el('p',{class:'hint',text:'拟合成功与结果可信分开审阅；分页和筛选不改变全量导出。曲线使用保存的拟合参数，不重新拟合。'}),
+    controls,tableHost,el('div',{class:'reviewtoolbar'},[previous,pageLabel,next]),detailHost,
+  ])));
+  let page=0, selected=null, requestVersion=0;
+  function selection() {return all.find(r=>r.compound===choices.value)}
+  function showDetails() {
+    requestVersion++;
+    selected=choices.value;const entry=selection();detailHost.replaceChildren();
+    graph.disabled=!entry || !!entry.error || !payload.record_id;
+    if(!entry)return;
+    const lines=[labels[state(entry)]+' · '+entry.compound];
+    if(entry.error)lines.push(entry.error);
+    else {
+      lines.push(entry.message,entry.model_selection?.message||'');
+      lines.push(...(entry.warnings||[]));
+      (entry.validation||[]).filter(c=>!c.passed).forEach(c=>lines.push(c.rule_id+' '+c.message));
+    }
+    detailHost.appendChild(el('div',{class:'block',text:lines.join('\n')}));
+  }
+  function update() {
+    const query=search.value.trim().toLowerCase();
+    const filtered=all.filter(r=>r.compound.toLowerCase().includes(query) &&
+      (filter.value==='all'||(filter.value==='attention'?['review','failed'].includes(state(r)):state(r)===filter.value)));
+    const pages=Math.max(1,Math.ceil(filtered.length/20));page=Math.min(page,pages-1);
+    choices.replaceChildren();filtered.forEach(row=>choices.appendChild(el('option',{value:row.compound,text:row.compound+' · '+labels[state(row)]})));
+    if(filtered.some(r=>r.compound===selected))choices.value=selected;
+    const rows=filtered.slice(page*20,(page+1)*20).map(r=>[r.compound,labels[state(r)],r.model||'—',num(r.relative_value),r.relative_ci?r.relative_ci.map(v=>num(v)).join(' – '):'不可估计',r.absolute_value==null?'不可达 / 未估计':num(r.absolute_value),num(r.r_squared),r.error||'']);
+    tableHost.replaceChildren(dataTable(['化合物','审阅状态','模型','相对效价','相对效价区间','绝对效价','R²','失败原因'],rows));
+    pageLabel.textContent='第 '+(page+1)+' / '+pages+' 页 · '+filtered.length+' 条匹配结果';
+    previous.disabled=page===0;next.disabled=page>=pages-1;showDetails();
+  }
+  search.addEventListener('input',()=>{page=0;update()});filter.addEventListener('change',()=>{page=0;update()});
+  choices.addEventListener('change',()=>{showDetails();setCharts([])});
+  previous.addEventListener('click',()=>{page--;update()});next.addEventListener('click',()=>{page++;update()});
+  graph.addEventListener('click',async()=>{
+    const entry=selection();if(!entry)return;const token=++requestVersion;graph.disabled=true;
+    try {
+      const response=await fetch('/api/lab/records/'+payload.record_id+'/potency/plots?compound='+encodeURIComponent(entry.compound));
+      const data=await response.json();if(!response.ok)throw Error(data.error);
+      if(current.key==='potency' && lastPayload?.record_id===payload.record_id && token===requestVersion){setCharts(data.plots);showBanner('ok',data.note)}
+    }catch(error){if(current.key==='potency' && token===requestVersion)showBanner('err',error.message)}
+    finally{if(token===requestVersion)graph.disabled=false}
+  });
+  update();setCharts((payload.plots||[]).slice(0,1));
+  const pending=all.filter(row=>state(row)!=='passed').length;
+  if(pending)showBanner('warn','拟合完成，'+pending+' 条结果尚未通过审阅，请查看状态与原因。');
+  else showAuditBanner(ok.flatMap(entry=>entry.validation||[]),'拟合完成');
+}
+
+async function fillExample() {
+  if (running) return;
+  if (current.example) {
+    hideBanner();
+    try {
+      const response = await fetch("/api/workspace/examples/" + encodeURIComponent(current.key));
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) {
+        showBanner("err", payload.error || "无法获取示例数据。");
+        return;
+      }
+      payload.files.forEach((entry) => {
+        const bytes = Uint8Array.from(atob(entry.data), (char) => char.charCodeAt(0));
+        const drop = document.querySelector('.dropzone[data-role="' + entry.role + '"]');
+        setFile(entry.role, new File([bytes], entry.name), drop);
+      });
+      showBanner("ok", payload.note || "已载入模块示例，可直接开始分析。");
+    } catch (error) {
+      showBanner("err", "请求失败：" + error);
+    }
+    return;
+  }
+  if (!current.schema) {
+    showBanner("warn", "该模块暂无内置示例，请上传文件。");
+    return;
+  }
+  const schema = $("schemaSelect").value;
+  if (!schema) return;
+  hideBanner();
+  try {
+    const body = new FormData();
+    body.append("format", schema);
+    const response = await fetch("/api/preview/example", { method:"POST", body });
+    const payload = await response.json();
+    if (!response.ok || !payload.ok) {
+      showBanner("err", payload.error || "无法获取示例数据。");
+      return;
+    }
+    const role = current.roles[0];
+    const drop = document.querySelector('.dropzone[data-role="' + role.id + '"]');
+    setFile(role.id, new File([payload.csv], payload.format + "_example.csv",
+      { type: "text/csv" }), drop);
+    renderPreviewTable({ header: payload.header, rows: payload.rows,
+      encoding: "utf-8", delimiter: ",", rows_total: payload.rows.length,
+      schema: payload.format, schema_score: 1 });
+    $("sections").innerHTML = "";
+    $("metrics").innerHTML = "";
+    $("metrics").appendChild(metric("示例行数", String(payload.rows.length)));
+    $("metrics").appendChild(metric("列数", String(payload.header.length)));
+    $("metrics").appendChild(metric("格式", payload.format));
+    if (payload.notes.length)
+      $("sections").appendChild(section("该格式的注意事项",
+        el("ul", { class: "issues" }, payload.notes.map((text) =>
+          el("li", { text })))));
+    setChart("");
+    showBanner("ok", "已载入「" + payload.title + "」示例数据，可直接开始分析。");
+  } catch (error) {
+    showBanner("err", "请求失败：" + error);
+  }
+}
+
+function downloadExample() {
+  if(current.example){window.location.href='/api/workspace/examples/'+encodeURIComponent(current.key)+'/download';return}
+  const schema = $("schemaSelect").value;
+  if (!schema) return;
+  window.location.href = "/api/schemas/" + encodeURIComponent(schema) + "/template";
+}
+
+function clearAll() {
+  if (running) return;
+  files = {};
+  buildRoles();
+  clearResults();
+  hideBanner();
+  updateReadiness();
+}
+
+async function runNext() {
+  if (running) return;
+  const missing = current.roles
+    .filter((role) => role.required && !files[role.id])
+    .map((role) => role.label);
+  if (missing.length) {
+    showBanner("err", "请先选择：" + missing.join("、"));
+    return;
+  }
+
+  const body = new FormData();
+  body.append("_archive", "1");
+  current.roles.forEach((role) => {
+    if (files[role.id]) body.append(role.id, files[role.id]);
+  });
+  current.fields.forEach((field) => body.append(field.id, fieldValue(field)));
+
+  clearResults();
+  running = true;
+  $("params").querySelectorAll("input,select").forEach(node=>node.disabled=true);
+  $("btnFill").disabled=true;
+  $("spin").classList.add("show");
+  updateReadiness();
+  hideBanner();
+  $("sections").innerHTML = "";
+  $("metrics").innerHTML = "";
+
+  try {
+    const response = await fetch(current.endpoint, { method: "POST", body });
+    const payload = await response.json();
+    if (!response.ok || !payload.ok) {
+      showBanner("err", payload.error || "分析失败。");
+      setChart("");
+      return;
+    }
+    lastPayload = payload;
+    const renderer = RENDERERS[current.key];
+    if (renderer) renderer(payload);
+    showExecutionNotes(payload);
+    currentRecordId = payload.record_id || null;
+    if(currentRecordId)history.replaceState(null,'',location.pathname+'?record='+encodeURIComponent(currentRecordId)+'#'+current.key);
+    $('archiveStatus').textContent = payload.archive_error || (currentRecordId ? '已自动保存原始文件、参数与完整结果。' : '本次结果未保存，请下载完整结果。');
+    rememberDraft();
+    await refreshRecords();
+  } catch (error) {
+    showBanner("err", "请求失败：" + error);
+  } finally {
+    running = false;
+    $("params").querySelectorAll("input,select").forEach(node=>node.disabled=false);
+    $("btnFill").disabled=!(current.schema || current.example);
+    $("spin").classList.remove("show");
+    updateReadiness();
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Format documentation
+ * ------------------------------------------------------------------ */
+
+async function loadSchemas() {
+  try {
+    const response = await fetch("/api/schemas");
+    const payload = await response.json();
+    if (!payload.ok) return;
+    const select = $("schemaSelect");
+    select.innerHTML = "";
+    payload.schemas.forEach((schema) => {
+      const option = el("option", { value: schema.key, text: schema.key + " — " + schema.title });
+      option.dataset.markdown = schema.markdown;
+      select.appendChild(option);
+    });
+    select.value = current.schema || payload.schemas[0].key;
+    renderSchemaDoc(select.value);
+  } catch (error) {
+    /* the workspace still works without the documentation pane */
+  }
+}
+
+function renderSchemaDoc(key) {
+  const select = $("schemaSelect");
+  select.disabled=!!current.format;
+  if(current.format){$('schemaDoc').textContent=current.format;return}
+  const option = Array.from(select.options).find((node) => node.value === key);
+  if (!option) return;
+  const markdown = option.dataset.markdown || "";
+  const html = markdown
+    .split("\n")
+    .map((line) => {
+      if (line.startsWith("### ")) return "<strong style='font-size:14px'>" + line.slice(4) + "</strong>";
+      if (line.startsWith("|")) return "<div style='font-family:var(--mono);font-size:11.5px'>" + line + "</div>";
+      if (line.startsWith("* ")) return "<div style='padding-left:12px'>" + line + "</div>";
+      if (line.startsWith("```")) return "";
+      return line ? "<p style='margin:5px 0'>" + line + "</p>" : "";
+    })
+    .join("");
+  $("schemaDoc").innerHTML = html;
+}
+
+/* ------------------------------------------------------------------ *
+ * Wire up
+ * ------------------------------------------------------------------ */
+
+document.querySelectorAll(".tab").forEach((tab) => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach((node) => {
+      const selected = node === tab;
+      node.classList.toggle("active", selected);
+      node.setAttribute("aria-selected", String(selected));
+    });
+    document.querySelectorAll(".pane").forEach((pane) =>
+      pane.classList.toggle("show", pane.dataset.pane === tab.dataset.pane));
+  });
+});
+$("schemaSelect").addEventListener("change", (event) => renderSchemaDoc(event.target.value));
+$("btnFill").addEventListener("click", fillExample);
+$("btnDownload").addEventListener("click", downloadExample);
+$("btnClear").addEventListener("click", clearAll);
+$("btnClear2").addEventListener("click", clearAll);
+$("btnNext").addEventListener("click", runNext);
+$("btnShare").addEventListener("click", () => {
+  const text = lastPayload ? JSON.stringify(lastPayload) : "";
+  if (!text) { showBanner("warn", "还没有可复制的结果。"); return; }
+  navigator.clipboard.writeText(text)
+    .then(() => showBanner("ok", "结果 JSON 已复制到剪贴板。"))
+    .catch(() => showBanner("warn", "浏览器拒绝了剪贴板访问。"));
+});
+
+function downloadJson(value, name) {
+  const url=URL.createObjectURL(new Blob([JSON.stringify(value,null,2)],{type:'application/json'}));
+  const link=el('a',{href:url,download:name});document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+function applyRecordState(restoredFiles, parameters, result, recordId, imported=false) {
+  for (const [role,file] of Object.entries(restoredFiles)) {
+    const drop=document.querySelector('.dropzone[data-role="'+role+'"]');
+    if (drop) setFile(role,file,drop);
+  }
+  for (const field of current.fields) {
+    if (!(field.id in parameters)) continue;
+    const input=$('f_'+field.id);
+    if (field.type==='check') input.checked=parameters[field.id]==='1';else input.value=parameters[field.id];
+  }
+  lastPayload=result;currentRecordId=recordId;currentImported=imported;
+  if (result && !imported) RENDERERS[current.key](result);
+  if (result && !imported) showExecutionNotes(result);
+  if (imported) $('sections').appendChild(section('来自备份的历史结果（未复算）',el('p',{text:'原始文件与参数已恢复。备份结果保留供下载，尚未经本机复算；请运行分析生成当前结论。'})));
+  updateReadiness();
+}
+function showExecutionNotes(payload) {
+  const messages = [...(payload.plot_warnings || [])];
+  const version = payload.provenance?.package_versions?.bioeng_qpcr;
+  messages.push(version ? '本次计算版本：bioeng-qpcr '+version+'；完整环境与输入摘要见 JSON 备份。' : '旧记录未记录计算软件版本；重新运行可补齐当前环境记录。');
+  $('sections').appendChild(section('运行记录',el('ul',{class:'issues'},messages.map(text=>el('li',{text})))));
+  if(payload.plot_warnings?.length)showBanner('warn',payload.plot_warnings.join(' '));
+}
+async function refreshRecords() {
+  const key=current.key;
+  try {
+    const response=await fetch('/api/lab/records?module='+encodeURIComponent(key));const data=await response.json();
+    if (!response.ok) throw Error(data.error);
+    if (key!==current.key) return;
+    $('recordSelect').replaceChildren(el('option',{value:'',text:'选择历史分析（最近 100 条）'}));
+    data.records.forEach(row=>$('recordSelect').appendChild(el('option',{value:row.id,text:row.created_at.slice(0,19).replace('T',' ')+' · '+row.title})));
+    $('recordSelect').value=currentRecordId || '';
+  } catch(error) {$('archiveStatus').textContent='历史记录读取失败：'+error.message}
+}
+async function openRecord(record) {
+  if(running)throw Error('请等待当前分析完成后恢复记录');
+  select(record.module);files={};buildRoles();buildFields();clearResults();
+  const recovered={};
+  for (const file of record.files) recovered[file.role]=new File([Uint8Array.from(atob(file.data),c=>c.charCodeAt(0))],file.name,{type:file.type});
+  applyRecordState(recovered,record.parameters,{...record.result,record_id:record.id},record.id,record.imported);
+  $('recordSelect').value=record.id;
+  $('archiveStatus').textContent=record.imported?'已恢复备份；历史结果未复算，请重新运行。':'已恢复历史分析；修改文件或参数后需要重新运行。';
+  rememberDraft();await refreshRecords();
+  history.replaceState(null,'',location.pathname+'?record='+encodeURIComponent(record.id)+'#'+record.module);
+}
+$('btnResultDownload').addEventListener('click',()=>{if(lastPayload)downloadJson(lastPayload,'biolab-result.json');else showBanner('warn','还没有可下载的结果。')});
+$('btnRestore').addEventListener('click',async()=>{if(running)return;const id=$('recordSelect').value;if(!id)return;try{const response=await fetch('/api/lab/records/'+id);const data=await response.json();if(!response.ok)throw Error(data.error);await openRecord(data.record)}catch(error){showBanner('err',error.message)}});
+$('btnBackup').addEventListener('click',()=>{const id=$('recordSelect').value || currentRecordId;if(id){const link=el('a',{href:'/api/lab/records/'+id+'/export',download:'biolab-analysis.json'});document.body.appendChild(link);link.click();link.remove()}else showBanner('warn','请先选择一条已保存记录。')});
+$('btnImportRecord').addEventListener('click',()=>{if(!running)$('recordFile').click()});
+$('recordFile').addEventListener('change',async event=>{try{const file=event.target.files[0];if(!file)return;if(file.size>64*1024*1024)throw Error('备份超过 64 MiB，请使用原始数据库备份恢复');const record=JSON.parse(await file.text());const response=await fetch('/api/lab/records/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(record)});const data=await response.json();if(!response.ok)throw Error(data.error);await openRecord(data.record)}catch(error){showBanner('err','备份导入失败：'+error.message)}finally{event.target.value=''}});
+
+const requestedRecord=new URLSearchParams(location.search).get('record');
+buildRail();
+select(location.hash.slice(1));
+if(requestedRecord)fetch('/api/lab/records/'+encodeURIComponent(requestedRecord)).then(async response=>{const data=await response.json();if(!response.ok)throw Error(data.error);await openRecord(data.record)}).catch(error=>showBanner('err','历史恢复失败：'+error.message));
+window.addEventListener('hashchange', () => {
+  if (location.hash.slice(1) !== current.key) select(location.hash.slice(1));
+});
+loadSchemas();
+fetch("/api/health").then((r) => r.json())
+  .then((data) => { $("version").textContent = "v" + data.version; })
+  .catch(() => {});
+</script>
+</body>
+</html>

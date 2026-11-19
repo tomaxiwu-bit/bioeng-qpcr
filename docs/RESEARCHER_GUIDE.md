@@ -82,6 +82,22 @@ The rule set is a readiness subset, not the full MIQE checklist. MIQE 2.0
 emphasizes assay efficiency, sensitivity, transparent raw data, and appropriate
 normalization; see the [MIQE 2.0 update](https://academic.oup.com/clinchem/article/71/6/634/8119148).
 
+Generate the full 53-item reporting checklist and its prioritized evidence-gap
+plan with `bioeng-qpcr miqe data.csv`. Evidence that cannot be derived from the
+data file can be supplied as a small JSON object:
+
+```json
+{
+  "protocol_instrument": "Bio-Rad CFX96, serial CFX-001",
+  "analysis_cq_method": "Baseline-subtracted regression Cq; software v2.3"
+}
+```
+
+Pass it with `--answers-file evidence.json`; use
+`report --miqe-answers-file evidence.json` to embed the same evidence and the
+remaining action plan in the combined HTML/JSON report. Values must be
+non-empty evidence strings or booleans, and unknown MIQE field IDs are rejected.
+
 ### Flagging suspect technical replicates
 
 Before averaging technical replicates, screen them for wells with a
@@ -162,12 +178,27 @@ bioeng-qpcr report examples/researcher_example.csv \
   --target IL6 \
   --reference-targets GAPDH,RPLP0 \
   --output-file researcher-report.html \
-  --json-file researcher-report.json
+  --json-file researcher-report.json \
+  --package-file researcher-package.zip
 ```
 
 The report combines readiness findings, quantities, exclusions, input
 diagnostics, the normalized scientific-content hash, raw-file SHA-256 hash,
 package versions, analysis parameters, and validation-rule versions.
+The optional ZIP also includes the original input, separate MIQE and
+provenance JSON files, RO-Crate metadata, and a SHA-256 checksum manifest.
+
+For replicated standards, retain every attempted replicate—including
+non-detects—and run:
+
+```bash
+bioeng-qpcr standard-curve standards.csv --target GAPDH \
+  --predict-concentration 100 --output-file calibration.json
+```
+
+The default empirical criteria are at least three replicates, ≥95% detection
+for LOD, and Cq SD ≤0.5 for LLOQ. Change these flags only to match a documented
+laboratory SOP; the selected values are included in the output.
 
 ## 6. Fit enzyme-kinetics parameters
 
@@ -372,20 +403,100 @@ after solving, so repeated calls on the same model are safe.
 ## 10. Desktop application, widgets, and MCP server
 
 - **Desktop application** — `bioeng-qpcr-gui` launches a PySide6 interface
-  that covers the qPCR, enzyme-kinetics, fermentation, and flux workflows
-  with progress reporting and cooperative cancellation. A Chinese-language
-  manual for the packaged Windows build is kept at
-  [`docs/bioeng-qpcr使用说明.pdf`](bioeng-qpcr使用说明.pdf).
+  that covers the qPCR, enzyme-kinetics, fermentation, flux, potency, docking,
+  sequencing and preview workflows, with progress reporting and cooperative
+  cancellation. A Chinese-language manual for the packaged Windows build is
+  kept at [`docs/bioeng-qpcr使用说明.pdf`](bioeng-qpcr使用说明.pdf).
 - **Jupyter widgets** — `pip install ".[widgets]"` enables the ipywidgets
   front end over the same core package.
 - **MCP server** — `bioeng-qpcr-mcp` exposes 15 tools (`qpcr_*`,
   `enzyme_*`, `ferment_*`, `fba_*`) for AI assistants. Each tool wraps the
   validated core API; assistant-facing errors mirror the library's
   structured validation messages.
+- **Web workspace** — `bioeng-qpcr-web` then `http://127.0.0.1:8008/workspace`
+  gives the same modules in a browser, with a **填充示例 / 下载示例** pair so
+  the expected file layout is visible before anything is uploaded.
 
 Every workflow in sections 1-9 can also be re-run from the example datasets
 with `python scripts/verify_examples.py`, which fails loudly if any
 documented example stops working.
+
+## 11. Determine IC50 / EC50
+
+```bash
+bioeng-qpcr potency examples/dose_response_example.csv
+bioeng-qpcr potency examples/dose_response_example.csv --control-response 100
+bioeng-qpcr potency examples/dose_response_example.csv \
+  --compare CompoundA,CompoundB --plot ic50.png
+```
+
+Read both numbers the report prints. The **relative** value is the midpoint of
+the fitted window; the **absolute** value is the concentration producing the
+requested fraction (default 50 %) of the *control* response. They agree only
+when the response returns to zero. When inhibition is incomplete — say the
+signal only falls to 40 % of control — the fitted midpoint is *not* the 50 %
+inhibition concentration, and quoting it as "the IC50" overstates potency by
+whatever the gap happens to be.
+
+Use `--control-response` for the measured untreated or vehicle-control signal.
+If it is omitted, the software uses the mean response at the lowest tested
+concentration and records that assumption as a warning.
+
+The report also states which model won on AICc and whether the choice was
+ambiguous, and lists any POT rule that failed. Pay particular attention to
+`POT-001` (the potency is an extrapolation), `POT-008` (a plateau was never
+reached), and `POT-011` (the response reverses — the high-dose hook effect,
+which makes any IC50 fitted across it uninterpretable).
+
+## 12. Dock a ligand
+
+```bash
+bioeng-qpcr dock examples/docking_receptor.pdb examples/docking_ligand.pdb \
+  --n-runs 8 --n-steps 4000
+```
+
+Lower score is better. Read the per-term breakdown, not just the total: a pose
+that wins on van der Waals contact but pays a large desolvation penalty is a
+different claim from one that wins on hydrogen bonds. Increase `--n-runs` and
+`--n-steps` until `converged` is true; when the DCK rules report that sampling
+was inadequate, the ranking is not yet trustworthy.
+
+The scoring function here is a simplified empirical potential, not a validated
+force field. Treat the output as a hypothesis to be re-scored with an
+established docking program, not as a binding affinity.
+
+## 13. Compare a sequencing read with a reference
+
+```bash
+bioeng-qpcr align examples/sequencing_reads.fastq \
+  examples/sequencing_reference.fasta --variants
+bioeng-qpcr align reads.fastq reference.fasta \
+  --primer-5 ACGTACGT --primer-3 TGCATGCA --trim-quality --min-quality 20
+bioeng-qpcr align reads.fastq reference.fasta --consensus
+```
+
+Reads are mapped semi-globally, so the reported `ref_start`/`ref_end` bracket
+the mapped region and every variant position is in reference coordinates.
+Excise primers first: a primer left in the read becomes a cluster of apparent
+variants at the 5' end. The SEQ rules then check identity, length, coverage,
+low-quality fraction, frameshifts (in `--coding` mode), ambiguous bases, GC
+content and primer excision.
+
+## 14. Preview a file before analysing it
+
+```bash
+bioeng-qpcr preview my_data.csv
+bioeng-qpcr preview my_data.csv --format dose_response --output json
+bioeng-qpcr schema --list
+bioeng-qpcr schema --format dose_response --write-template template.csv
+```
+
+The preview reports what the reader actually sees — encoding, delimiter,
+per-column inferred type, and every structural problem with its row and column
+— without repairing anything. Fix the source file rather than relying on
+lenient parsing. Every module's expected layout is specified in
+[`docs/CSV_IMPORT_SPEC.md`](CSV_IMPORT_SPEC.md), which is generated from the
+same registry the validators use.
 
 ## What still needs independent validation
 

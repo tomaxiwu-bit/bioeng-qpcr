@@ -58,6 +58,44 @@ class TestIndex:
         assert "version" in body
 
 
+@pytest.fixture
+def local_client(tmp_path):
+    app = create_app()
+    app.config.update(TESTING=True, WORKBENCH_DB=str(tmp_path / "security.sqlite3"))
+    return app.test_client()
+
+
+@pytest.mark.parametrize("host", ["localhost", "127.0.0.1:8008", "[::1]:8008"])
+def test_loopback_hosts_and_matching_origins_are_accepted(local_client, host):
+    origin = f"http://{host}"
+    assert local_client.get("/api/health", base_url=origin).status_code == 200
+    response = local_client.post(
+        "/api/validate", base_url=origin, headers={"Origin": origin}
+    )
+    assert response.status_code == 400
+    assert "No file" in response.get_json()["error"]
+
+
+def test_untrusted_host_cannot_read_or_create_projects(local_client):
+    origin = "http://untrusted.example"
+    assert local_client.get("/api/qpcr/projects", base_url=origin).status_code == 400
+    assert local_client.post(
+        "/api/qpcr/projects", base_url=origin,
+        headers={"Origin": origin}, json={"name": "untrusted"},
+    ).status_code == 400
+
+
+@pytest.mark.parametrize(
+    "origin", ["http://untrusted.example", "https://localhost", "null"]
+)
+@pytest.mark.parametrize(
+    "endpoint", ["/api/validate", "/api/enzyme", "/api/qpcr/projects"]
+)
+def test_all_analysis_writes_reject_foreign_origins(local_client, endpoint, origin):
+    response = local_client.post(endpoint, headers={"Origin": origin}, json={})
+    assert response.status_code == 403
+
+
 # ---------------------------------------------------------------------------
 # /api/validate
 # ---------------------------------------------------------------------------

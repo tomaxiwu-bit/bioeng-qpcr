@@ -97,6 +97,12 @@ def _mean_cq(experiment: Experiment, sample_name: str, target_name: str) -> floa
             f"All Cq values are None for sample '{sample_name}' and target "
             f"'{target_name}'."
         )
+    if len(determined) != len(wells):
+        missing = ", ".join(well.position for well in wells if well.cq is None)
+        raise ValueError(
+            f"Sample '{sample_name}', target '{target_name}' has undetermined "
+            f"Cq at {missing}; incomplete replicates cannot be averaged."
+        )
     replicate_types = {well.replicate_type for well in determined}
     if len(replicate_types) > 1:
         values = ", ".join(sorted(item.value for item in replicate_types))
@@ -156,7 +162,7 @@ def delta_cq(
     Raises
         ValueError:
             If the target or reference is not found, or if Cq values are
-            ``None`` (undetermined) for all replicates.
+            ``None`` (undetermined) for any replicate.
     """
     ref = _resolve_reference(experiment, reference_target)
     mean_cq_target = _mean_cq(experiment, sample_name, target_name)
@@ -182,8 +188,8 @@ def delta_cq_all(
     """Calculate ΔCq for all samples, failing on omissions by default.
 
     Iterates over non-NTC samples that measured *target_name* and computes
-    ΔCq for each.  Samples with missing or undetermined Cq data are silently
-    skipped.
+    ΔCq for each. Missing or undetermined replicates cause an error unless
+    the caller explicitly permits sample exclusions.
 
     Parameters
         experiment:

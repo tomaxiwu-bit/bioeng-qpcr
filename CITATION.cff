@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+message: "If you use this software, cite the version and preserve the analysis provenance."
+title: "bioeng-qpcr"
+type: software
+authors:
+  - name: "bioeng-qpcr contributors"
+version: 0.6.8
+date-released: '2026-11-19'
+license: MIT
+repository-code: "https://github.com/tomaxiwu-bit/bioeng-qpcr"
+url: "https://github.com/tomaxiwu-bit/bioeng-qpcr"
+abstract: "Auditable qPCR workflows with companion quantitative laboratory analysis tools."

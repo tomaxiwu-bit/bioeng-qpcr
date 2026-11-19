@@ -75,7 +75,7 @@ wheels = [
 
 [[package]]
 name = "bioeng-qpcr"
-version = "0.5.1"
+version = "0.6.8"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
@@ -92,6 +92,7 @@ dependencies = [
 [package.optional-dependencies]
 desktop-build = [
     { name = "cobra" },
+    { name = "flask" },
     { name = "matplotlib", version = "3.10.9", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "matplotlib", version = "3.11.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "pillow" },
@@ -117,6 +118,7 @@ fba = [
     { name = "cobra" },
 ]
 gui = [
+    { name = "flask" },
     { name = "matplotlib", version = "3.10.9", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "matplotlib", version = "3.11.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "pillow" },
@@ -150,8 +152,10 @@ requires-dist = [
     { name = "cobra", marker = "extra == 'desktop-build'", specifier = ">=0.26,<0.32" },
     { name = "cobra", marker = "extra == 'dev'", specifier = ">=0.26,<0.32" },
     { name = "cobra", marker = "extra == 'fba'", specifier = ">=0.26,<0.32" },
-    { name = "flask", marker = "extra == 'dev'", specifier = ">=3.0" },
-    { name = "flask", marker = "extra == 'web'", specifier = ">=3.0" },
+    { name = "flask", marker = "extra == 'desktop-build'", specifier = ">=3.1" },
+    { name = "flask", marker = "extra == 'dev'", specifier = ">=3.1" },
+    { name = "flask", marker = "extra == 'gui'", specifier = ">=3.1" },
+    { name = "flask", marker = "extra == 'web'", specifier = ">=3.1" },
     { name = "ipywidgets", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "ipywidgets", marker = "extra == 'widgets'", specifier = ">=8.0" },
     { name = "matplotlib", marker = "extra == 'desktop-build'", specifier = ">=3.7" },

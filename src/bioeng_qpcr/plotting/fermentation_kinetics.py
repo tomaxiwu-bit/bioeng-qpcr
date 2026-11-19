@@ -69,7 +69,7 @@ def plot_fermentation_kinetics(
         x_fit,
         color=color1,
         linewidth=2,
-        label=f"Biomass fit (μmax={result.mu_max:.3f} h⁻¹)",
+        label=rf"Biomass fit ($\mu_{{max}}$={result.mu_max:.3f} h$^{{-1}}$)",
     )
     ax1.set_xlabel("Time (h)")
     ax1.set_ylabel("Biomass (g/L)", color=color1)

@@ -34,7 +34,7 @@ def _rdml_doc(
     """
     if runs is None:
         runs = (
-            "<run id=\"r1\"><pcrFormat><rows>8</rows><columns>12</columns>"
+            '<run id="r1"><pcrFormat><rows>8</rows><columns>12</columns>'
             "<rowLabel>ABC</rowLabel><columnLabel>123</columnLabel></pcrFormat>"
             f"{reacts}</run>"
         )
@@ -200,6 +200,24 @@ class TestContainers:
         with pytest.raises(ValueError, match="no XML member"):
             read_rdml(target)
 
+    @pytest.mark.parametrize("container", ["zip", "gzip"])
+    def test_rejects_oversized_decompressed_xml(self, tmp_path, monkeypatch, container):
+        import bioeng_qpcr.io.rdml_reader as reader
+
+        monkeypatch.setattr(reader, "_MAX_RDML_XML_BYTES", 64)
+        payload = b"<rdml>" + b"x" * 128 + b"</rdml>"
+        target = tmp_path / "oversized.rdml"
+        if container == "zip":
+            with zipfile.ZipFile(
+                target, "w", compression=zipfile.ZIP_DEFLATED
+            ) as archive:
+                archive.writestr("rdml_data.xml", payload)
+        else:
+            target.write_bytes(gzip.compress(payload))
+
+        with pytest.raises(ValueError, match="decompressed-size limit"):
+            read_rdml(target)
+
 
 class TestCqParsing:
     def test_na_sentinel(self, tmp_path):
@@ -357,6 +375,21 @@ class TestEfficiencyValidation:
 
         assert experiment.assays["T1"].efficiency == pytest.approx(0.95)
 
+    def test_not_available_sentinel_is_accepted(self, tmp_path):
+        targets = (
+            '<target id="T1"><type>toi</type>'
+            "<amplificationEfficiency>-1.0</amplificationEfficiency>"
+            '<dyeId id="SYBR"/></target>'
+            '<target id="T2"><type>toi</type><dyeId id="SYBR"/></target>'
+        )
+        path = _write(
+            tmp_path, _rdml_doc(_react("1", "S1", "T1", "20.0"), targets=targets)
+        )
+
+        experiment = read_rdml(path)
+
+        assert experiment.assays["T1"].efficiency is None
+
 
 class TestStructureValidation:
     def test_duplicate_react_id(self, tmp_path):
@@ -401,9 +434,7 @@ class TestStructureValidation:
             read_rdml(path)
 
     def test_wrong_root_element_raises(self, tmp_path):
-        path = _write(
-            tmp_path, '<?xml version="1.0"?><html><body>nope</body></html>'
-        )
+        path = _write(tmp_path, '<?xml version="1.0"?><html><body>nope</body></html>')
 
         with pytest.raises(ValueError, match="rdml"):
             read_rdml(path)
@@ -426,9 +457,9 @@ class TestStructureValidation:
 
     def test_conflicting_group_annotations(self, tmp_path):
         samples = (
-            "<sample id=\"S1\"><type>unkn</type>"
-            '<annotation><property>group</property><value>a</value></annotation>'
-            '<annotation><property>group</property><value>b</value></annotation>'
+            '<sample id="S1"><type>unkn</type>'
+            "<annotation><property>group</property><value>a</value></annotation>"
+            "<annotation><property>group</property><value>b</value></annotation>"
             "</sample>"
         )
         path = _write(
@@ -460,7 +491,7 @@ class TestPlateGeometry:
         runs = (
             '<run id="r1"><pcrFormat><rows>8</rows><columns>12</columns>'
             "<rowLabel>123</rowLabel><columnLabel>123</columnLabel></pcrFormat>"
-            f'{_react("1", "S1", "T1", "20.0")}</run>'
+            f"{_react('1', 'S1', 'T1', '20.0')}</run>"
         )
 
         experiment = read_rdml(_write(tmp_path, _rdml_doc("", runs=runs)))
@@ -473,10 +504,10 @@ class TestMultipleRuns:
         runs = (
             '<run id="r1"><pcrFormat><rows>8</rows><columns>12</columns>'
             "<rowLabel>ABC</rowLabel><columnLabel>123</columnLabel></pcrFormat>"
-            f'{_react("1", "S1", "T1", "20.0")}</run>'
+            f"{_react('1', 'S1', 'T1', '20.0')}</run>"
             '<run id="r2"><pcrFormat><rows>8</rows><columns>12</columns>'
             "<rowLabel>ABC</rowLabel><columnLabel>123</columnLabel></pcrFormat>"
-            f'{_react("1", "S1", "T1", "21.0")}</run>'
+            f"{_react('1', 'S1', 'T1', '21.0')}</run>"
         )
 
         experiment = read_rdml(_write(tmp_path, _rdml_doc("", runs=runs)))
@@ -525,8 +556,7 @@ class TestRdml13:
 
     def test_per_target_ntc_type(self, tmp_path):
         samples = (
-            '<sample id="S1"><type>unkn</type>'
-            '<type targetId="T1">ntc</type></sample>'
+            '<sample id="S1"><type>unkn</type><type targetId="T1">ntc</type></sample>'
         )
         react = (
             '<react id="1"><sample id="S1"/>'
@@ -535,9 +565,7 @@ class TestRdml13:
             "</react>"
         )
 
-        experiment = read_rdml(
-            _write(tmp_path, _rdml_doc(react, samples=samples))
-        )
+        experiment = read_rdml(_write(tmp_path, _rdml_doc(react, samples=samples)))
 
         by_target = {w.target_name: w for w in experiment.wells}
         assert by_target["T1"].cq_status == "no_template"
@@ -617,9 +645,7 @@ class TestRdml13:
             "<N0>5.0</N0></data></react>"
         )
 
-        experiment = read_rdml(
-            _write(tmp_path, _rdml_doc(react, targets=targets))
-        )
+        experiment = read_rdml(_write(tmp_path, _rdml_doc(react, targets=targets)))
 
         assert experiment.wells[0].amp_eff == pytest.approx(0.90)
 

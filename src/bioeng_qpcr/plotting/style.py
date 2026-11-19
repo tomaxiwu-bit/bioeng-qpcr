@@ -25,17 +25,20 @@ import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
-# Warm editorial palette adapted from the Claude Design Library.
-# Terracotta-forward, colour-blind friendly, and consistent with the
-# desktop application's "Warm Editorial Science" theme.
+# Warm editorial, colour-blind-safe palette.  Colour is never the only cue in
+# the scientific plots, but this keeps categories distinct in print and on web.
 _DEFAULT_PALETTE: list[str] = [
-    "#d97757",  # terracotta (brand primary)
-    "#8ca06f",  # sage green
-    "#b05730",  # deep terracotta
-    "#9c87f5",  # muted violet
-    "#c4933a",  # warm ochre
-    "#5b8a99",  # slate teal
+    "#b85c3e",  # terracotta (brand primary)
+    "#2b6f5e",  # deep teal
+    "#d19a2a",  # ochre
+    "#4c78a8",  # blue
+    "#8b6f9f",  # violet
+    "#74854f",  # olive
 ]
+
+_PAPER = "#fffdf9"
+_INK = "#2f2924"
+_LINE = "#d8d0c5"
 
 
 @dataclass
@@ -93,14 +96,23 @@ def apply_style(ax: Axes, style: PlotStyle | None = None) -> None:
     s = _resolve(style)
 
     if s.grid:
-        ax.grid(True, alpha=s.grid_alpha)
+        ax.grid(True, color=_LINE, linewidth=0.7, alpha=s.grid_alpha)
     else:
         ax.grid(False)
 
-    ax.tick_params(labelsize=s.font_size)
+    ax.set_axisbelow(True)
+    ax.tick_params(labelsize=s.font_size, colors=_INK, length=3)
     ax.xaxis.label.set_fontsize(s.font_size)
     ax.yaxis.label.set_fontsize(s.font_size)
     ax.title.set_fontsize(s.title_size)
+    ax.title.set_color(_INK)
+    ax.title.set_fontweight("semibold")
+    ax.xaxis.label.set_color(_INK)
+    ax.yaxis.label.set_color(_INK)
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
+    for side in ("bottom", "left"):
+        ax.spines[side].set_color(_LINE)
 
     handles, labels = ax.get_legend_handles_labels()
     if s.legend and handles:
@@ -113,7 +125,12 @@ def apply_style(ax: Axes, style: PlotStyle | None = None) -> None:
                 seen.add(label)
                 unique_handles.append(handle)
                 unique_labels.append(label)
-        ax.legend(unique_handles, unique_labels, fontsize=s.font_size)
+        ax.legend(
+            unique_handles,
+            unique_labels,
+            fontsize=max(s.font_size - 1, 7),
+            frameon=False,
+        )
     elif not s.legend:
         legend = ax.get_legend()
         if legend is not None:
@@ -124,6 +141,9 @@ def create_figure(style: PlotStyle | None = None) -> tuple[Figure, Axes]:
     """Create a ``(Figure, Axes)`` pair sized and resolved per *style*."""
     s = _resolve(style)
     fig, ax = plt.subplots(figsize=s.figure_size, dpi=s.dpi)
+    fig.patch.set_facecolor(_PAPER)
+    ax.set_facecolor(_PAPER)
+    ax.set_prop_cycle(color=s.color_palette)
     return fig, ax
 
 

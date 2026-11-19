@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BioLab · 综合实验工作台</title>
+<style>
+:root{--bg:#f4f6f3;--paper:#fff;--ink:#243d32;--muted:#768279;--line:#e1e7df;--green:#2b6b50;--pale:#edf4ee}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.7 'Segoe UI','Microsoft YaHei',sans-serif}a{color:var(--green);text-decoration:none}button,input{font:inherit}button,a,input{outline-offset:4px}button{cursor:pointer}.top{display:flex;gap:12px;align-items:center;padding:19px 35px;border-bottom:1px solid var(--line);background:var(--paper)}.mark{width:35px;height:39px;display:grid;place-items:center;background:var(--green);border-radius:9px;color:white;font:bold 17px Consolas,monospace}.brand{font-size:19px;font-weight:650}.subbrand{font-size:10px;color:var(--muted);letter-spacing:1.4px}.grow{flex:1}.pill{border:1px solid var(--line);border-radius:18px;padding:4px 11px;font-size:11px;color:var(--muted);white-space:nowrap}.wrap{max-width:1400px;margin:auto;padding:35px}.eyebrow{font:11px Consolas,monospace;letter-spacing:1.8px;color:var(--green);margin-bottom:8px}h1{font-size:30px;margin:0;font-weight:650}p{margin:7px 0;color:var(--muted)}.hero{display:flex;align-items:center;gap:35px;margin-bottom:29px}.hero p{max-width:700px;font-size:13px}.count{padding:15px 20px;background:var(--paper);border:1px solid var(--line);border-radius:10px;white-space:nowrap;font-size:12px;color:var(--muted)}.count strong{font:30px Consolas,monospace;color:var(--green);margin-right:8px}.toolbar{display:flex;align-items:center;gap:15px;margin-bottom:20px}.toolbar input{padding:10px 13px;border:1px solid var(--line);border-radius:7px;background:var(--paper);width:310px;max-width:100%;color:var(--ink)}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:17px}.module{background:var(--paper);border:1px solid var(--line);border-radius:11px;padding:23px;display:flex;flex-direction:column;min-height:265px;transition:box-shadow .15s,border-color .15s}.module:hover{border-color:#b2cdb8;box-shadow:0 8px 25px #234e3010}.module.featured{border-top:3px solid var(--green)}.cardtop{display:flex;align-items:center;gap:12px;margin-bottom:15px}.icon{display:grid;place-items:center;width:39px;height:39px;border-radius:10px;background:var(--pale);color:var(--green);font:bold 15px Consolas,monospace}.tag{margin-left:auto;font-size:10px;color:var(--muted);border:1px solid var(--line);padding:2px 8px;border-radius:15px}h2{font-size:19px;margin:0 0 7px}.module p{font-size:12px;min-height:40px;margin:0 0 14px}.flow{font-size:11px;color:var(--muted);padding:11px 0;border-top:1px solid var(--line);margin-top:auto}.actions{display:flex;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap}.btn{border:1px solid var(--line);background:var(--paper);color:var(--green);padding:8px 13px;border-radius:6px;font-size:12px}.btn.primary{background:var(--green);border-color:var(--green);color:white}.btn:hover{filter:brightness(.97)}.secondary{font-size:11px}.notes{padding:16px 19px;border:1px solid var(--line);background:#f9fbf6;border-radius:9px;font-size:12px;color:var(--muted);margin-top:25px}.status{font-size:12px;color:var(--green);min-height:24px;margin-top:12px}.empty{display:none;color:var(--muted);text-align:center;padding:30px}.module[hidden]{display:none}.help{font-size:10px;color:var(--muted);margin-top:8px}.footer{display:flex;gap:18px;font-size:11px;color:var(--muted);margin-top:25px;padding-top:17px;border-top:1px solid var(--line)}@media(max-width:1100px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:650px){.top{padding:14px 17px}.wrap{padding:24px 17px}.grid{grid-template-columns:1fr}.hero{display:block}.count{display:inline-block;margin-top:15px}.toolbar{flex-wrap:wrap}h1{font-size:25px}.top .pill{display:none}}
+</style></head>
+<body>
+<header class="top"><div class="mark">BL</div><div><div class="brand">BioLab</div><div class="subbrand">BIOENGINEERING WORKBENCH</div></div><span class="grow"></span><span class="pill">● 本地运行 · 数据留在本机</span><span class="pill" id="version">bioeng-qpcr</span></header>
+<main class="wrap">
+<div class="hero"><div><div class="eyebrow">EXPERIMENTS / ANALYSIS / EVIDENCE</div><h1>综合实验工作台</h1><p>围绕可追溯的定量实验组织研究。qPCR 提供从设计到报告的完整工作流，效价、酶、发酵与代谢模型提供配套分析。</p></div><span class="grow"></span><div class="count"><strong>{{ '%02d'|format(modules|length) }}</strong>个主要研究模块</div></div>
+<div class="toolbar"><input id="search" type="search" aria-label="搜索实验模块" placeholder="搜索模块，例如 qPCR、酶、效价…"><span class="grow"></span><span class="pill">5 套 qPCR 设计模板 · 6 套图表主题</span></div>
+<p><a class="btn" href="/history">查看统一分析历史 →</a></p>
+<div class="grid" id="modules">
+{% for module in modules %}
+<article class="module {% if module.key == 'qpcr' %}featured{% endif %}" data-module="{{ module.key }}" data-search="{{ module.name }} {{ module.description }}">
+<div class="cardtop"><div class="icon">{{ module.icon }}</div><span class="tag">{{ module.tag }}</span></div>
+<h2>{{ module.name }}</h2><p>{{ module.description }}</p><div class="flow">{{ module.flow }}</div><div class="actions">
+{% if module.surface == 'web' %}<a class="btn {% if module.key == 'qpcr' %}primary{% endif %}" href="{{ module.href }}">{% if module.key == 'qpcr' %}进入完整工作流{% else %}打开分析模块{% endif %} →</a>
+{% else %}<button class="btn" data-desktop="{{ module.key }}">{% if desktop_available %}在桌面打开 →{% else %}查看桌面打开方式{% endif %}</button>{% endif %}
+{% if module.key == 'qpcr' %}<a class="secondary" href="/">独立 qPCR 分析</a>{% endif %}
+{% if module.key == 'preview' %}<a class="secondary" href="/workspace#preview_image">图片预览 →</a>{% endif %}
+{% if module.desktop %}<button class="btn" data-desktop="{{ module.key }}">保留的桌面分析 →</button>{% endif %}
+</div>{% if module.surface == 'desktop' and not desktop_available %}<div class="help">Windows 程序左侧保留此模块；从桌面工作台启动后可在此切换。</div>{% endif %}</article>
+{% endfor %}
+</div><div class="empty" id="empty">没有匹配的模块，请尝试其他关键词。</div>
+<div class="status" id="status" role="status" aria-live="polite"></div>
+<details class="notes"><summary>辅助工具与旧版兼容入口</summary><p>文件预览用于导入检查。简化刚性对接与通用序列比对已移出主要研究模块，旧记录仍可从统一历史恢复。</p>{% for module in auxiliary_modules %}<p><a href="{{ module.href }}">{{ module.name }} →</a>{% if module.key == 'preview' %} · <a href="/workspace#preview_image">图片预览 →</a>{% endif %}</p>{% endfor %}</details>
+<div class="notes">浏览器分析自动保存原始文件、参数、运行版本与完整结果；qPCR 项目保留自身的实验与运行历史。酶、发酵和 FBA 的原桌面页仍可使用；需要统一存档时请选择“打开分析模块”。</div>
+<footer class="footer"><span>研究与教学用途</span><span>本机处理与存储</span><a href="/workbench">继续 qPCR 实验 →</a></footer>
+</main>
+<script>
+const desktopAvailable={{ desktop_available|tojson }};
+document.querySelector('#search').addEventListener('input',event=>{const query=event.target.value.trim().toLowerCase();let count=0;document.querySelectorAll('[data-module]').forEach(card=>{card.hidden=!card.dataset.search.toLowerCase().includes(query);if(!card.hidden)count++});document.querySelector('#empty').style.display=count?'none':'block'});
+document.querySelectorAll('[data-desktop]').forEach(button=>button.addEventListener('click',async()=>{const status=document.querySelector('#status');if(!desktopAvailable){status.textContent='请打开 bioeng-qpcr.exe，点击“综合实验工作台”，或直接在程序左侧选择此模块。';return}button.disabled=true;try{const response=await fetch('/api/lab/open-desktop/'+button.dataset.desktop,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});const data=await response.json();if(!response.ok)throw Error(data.error);status.textContent='已请求切换到桌面程序中的'+button.closest('article').querySelector('h2').textContent+'。'}catch(error){status.textContent=error.message}finally{button.disabled=false}}));
+fetch('/api/health').then(r=>r.json()).then(data=>document.querySelector('#version').textContent='v'+data.version).catch(()=>{});
+</script></body></html>

@@ -90,6 +90,7 @@ class TestCqHeatmap:
         ylabels = [t.get_text() for t in ax.get_yticklabels()]
         assert xlabels == ["GAPDH", "TARGET"]
         assert ylabels == ["CTRL", "S1", "S2"]
+        assert all(label.get_rotation() == 0 for label in ax.get_xticklabels())
 
     def test_annotation_count(self, experiment: Experiment) -> None:
         _, ax = plot_cq_heatmap(experiment)

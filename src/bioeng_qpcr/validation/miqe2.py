@@ -44,6 +44,121 @@ __all__ = [
 ]
 
 
+# Each action groups MIQE items that are normally resolved together.  The
+# planner deliberately uses a small, fixed catalogue: it explains the next
+# useful work without pretending that software can design the experiment.
+_ACTION_CATALOG: list[tuple[str, str, int, str, str, tuple[str, ...]]] = [
+    (
+        "document_sample_provenance",
+        "document",
+        1,
+        "Document sample provenance and storage",
+        "Record sample source/count, collection procedure, and storage history.",
+        ("sample_types_quantity", "sample_procedure", "sample_storage"),
+    ),
+    (
+        "document_extraction_workflow",
+        "document",
+        1,
+        "Document extraction and template preparation",
+        "Record extraction input, elution, nucleic-acid QC, storage, and "
+        "dilution chain.",
+        (
+            "sample_extraction",
+            "sample_elution",
+            "sample_nucleic_assessment",
+            "sample_storage_conditions",
+            "sample_dilution_series",
+        ),
+    ),
+    (
+        "document_rt_workflow",
+        "document",
+        1,
+        "Document reverse-transcription conditions",
+        "Record priming, one/two-step design, RNA input, reagents, times, "
+        "and temperatures.",
+        ("rt_priming", "rt_one_step_two_step", "rt_rna_amount", "rt_components"),
+    ),
+    (
+        "document_qpcr_protocol",
+        "document",
+        1,
+        "Document the qPCR protocol",
+        "Record oligo concentrations, kit identity, cycling program, reaction "
+        "volume, and instrument model.",
+        (
+            "protocol_oligo_conc",
+            "protocol_kit",
+            "protocol_thermal_cycling",
+            "protocol_instrument",
+        ),
+    ),
+    (
+        "document_analysis_methods",
+        "document",
+        1,
+        "Document analysis methods and software",
+        "Record baseline/Cq, software version, target-quantity calculation, "
+        "and statistical methods.",
+        (
+            "analysis_cq_method",
+            "analysis_software",
+            "analysis_quantification_method",
+            "analysis_statistics",
+        ),
+    ),
+    (
+        "document_target_amplicons",
+        "document",
+        1,
+        "Document target and amplicon identity",
+        "Add official gene symbols, species/accessions, and amplicon coordinates "
+        "and lengths.",
+        (
+            "reagent_gene_symbols",
+            "reagent_amplicon_position",
+            "reagent_amplicon_length",
+        ),
+    ),
+    (
+        "document_controls_replicates",
+        "document",
+        1,
+        "Document controls and replicate structure",
+        "Describe positive/negative controls and distinguish biological from "
+        "technical replicates.",
+        ("analysis_controls", "analysis_repeats"),
+    ),
+    (
+        "export_raw_fluorescence",
+        "export",
+        1,
+        "Export raw amplification fluorescence",
+        "Export raw curves as RDML or RDES and retain them with the analysis packet.",
+        ("analysis_raw_data",),
+    ),
+    (
+        "validate_reference_genes",
+        "analyze",
+        2,
+        "Validate reference genes for this experiment",
+        "Run and record a stability method, then document the resulting "
+        "normalization calculation.",
+        ("analysis_reference_validation", "analysis_normalization"),
+    ),
+    (
+        "characterize_quantification_range",
+        "measure",
+        3,
+        "Characterize efficiency and quantification range",
+        "Run an appropriate standard series and report its identity, efficiency, "
+        "LLOQ/ULOQ, and dynamic range.",
+        ("analysis_standard", "analysis_efficiency", "analysis_loq_dynamic_range"),
+    ),
+]
+
+
 # ---------------------------------------------------------------------------
 # Static catalog
 # ---------------------------------------------------------------------------
@@ -85,9 +200,7 @@ def _derive_field(field_id: str, experiment: Experiment) -> tuple[str, str] | No
             if experiment.metadata.get(key):
                 return "reported", str(experiment.metadata[key])
     if field_id == "protocol_dye":
-        with_dye = sorted(
-            a.name for a in experiment.assays.values() if a.dye_chemistry
-        )
+        with_dye = sorted(a.name for a in experiment.assays.values() if a.dye_chemistry)
         if with_dye:
             return "reported", f"dye chemistry on: {', '.join(with_dye)}"
     # Data Analysis ----------------------------------------------------------
@@ -109,9 +222,7 @@ def _derive_field(field_id: str, experiment: Experiment) -> tuple[str, str] | No
             return "reported", f"{len(experiment.ntc_wells)} NTC wells"
     if field_id == "analysis_repeats":
         tech = [
-            w.position
-            for w in experiment.wells
-            if w.replicate_type.name == "TECHNICAL"
+            w.position for w in experiment.wells if w.replicate_type.name == "TECHNICAL"
         ]
         if tech:
             return "reported", f"technical replicates: {len(tech)} wells"
@@ -140,127 +251,376 @@ def _derive_field(field_id: str, experiment: Experiment) -> tuple[str, str] | No
 #: ``(field_id, category_id, item label, essential, helper-description)``.
 MIQE2_FIELDS: list[tuple[str, str, str, bool, str]] = [
     # -- Reagent Preparation ------------------------------------------------
-    ("reagent_gene_symbols", "reagent",
-     "Gene symbol, species and accession number for each target", True,
-     "Official gene symbol(s), target species and sequence accession."),
-    ("reagent_amplicon_position", "reagent", "Amplicon position", True,
-     "Position of the amplicon within the gene / transcript."),
-    ("reagent_amplicon_length", "reagent", "Amplicon length", True,
-     "Size of the PCR amplicon."),
-    ("reagent_sequences", "reagent",
-     "Primer and probe sequences (or assay context sequence)", False,
-     "Full sequences for primers/probes, or the assay context sequence when "
-     "pre-designed oligos are used."),
-    ("reagent_modifications", "reagent", "Modification position and type", False,
-     "Any chemical modifications to primers/probes."),
-    ("reagent_oligo_manufacturer", "reagent", "Oligo manufacturer", False,
-     "Supplier of primers/probes."),
-    ("reagent_optimization", "reagent", "Optimization details", False,
-     "How conditions were optimized."),
+    (
+        "reagent_gene_symbols",
+        "reagent",
+        "Gene symbol, species and accession number for each target",
+        True,
+        "Official gene symbol(s), target species and sequence accession.",
+    ),
+    (
+        "reagent_amplicon_position",
+        "reagent",
+        "Amplicon position",
+        True,
+        "Position of the amplicon within the gene / transcript.",
+    ),
+    (
+        "reagent_amplicon_length",
+        "reagent",
+        "Amplicon length",
+        True,
+        "Size of the PCR amplicon.",
+    ),
+    (
+        "reagent_sequences",
+        "reagent",
+        "Primer and probe sequences (or assay context sequence)",
+        False,
+        "Full sequences for primers/probes, or the assay context sequence when "
+        "pre-designed oligos are used.",
+    ),
+    (
+        "reagent_modifications",
+        "reagent",
+        "Modification position and type",
+        False,
+        "Any chemical modifications to primers/probes.",
+    ),
+    (
+        "reagent_oligo_manufacturer",
+        "reagent",
+        "Oligo manufacturer",
+        False,
+        "Supplier of primers/probes.",
+    ),
+    (
+        "reagent_optimization",
+        "reagent",
+        "Optimization details",
+        False,
+        "How conditions were optimized.",
+    ),
     # -- Sample Preparation -------------------------------------------------
-    ("sample_types_quantity", "sample", "Sample type and quantity", True,
-     "Sample source and number of samples."),
-    ("sample_procedure", "sample", "Sampling procedure (incl. storage time)", True,
-     "From sampling to storage."),
-    ("sample_storage", "sample", "Aliquoting, storage conditions and duration", True,
-     "Temperature, aliquoting and duration."),
-    ("sample_extraction", "sample", "Extraction method (incl. amount processed)", True,
-     "Reagent/kit and sample amount processed."),
-    ("sample_spike_in", "sample", "Spike-in nucleic acids: source and amount", False,
-     "External spike-in control(s), when used."),
-    ("sample_elution", "sample", "Elution / re-suspension buffer volume", True,
-     "Volume and buffer."),
-    ("sample_extraction_replicates", "sample", "Extraction replicates", False,
-     "Number of extraction replicates."),
-    ("sample_blank_recovery", "sample", "Extraction blanks and recovery", False,
-     "Blank controls and recovery rate."),
-    ("sample_nucleic_assessment", "sample",
-     "Nucleic acid quality/quantity method", True,
-     "How concentration/quality were assessed."),
-    ("sample_storage_conditions", "sample", "Nucleic acid storage conditions", True,
-     "Temperature, buffer, concentration, duration."),
-    ("sample_dilution_series", "sample", "Working-template dilution series", True,
-     "Full dilution chain."),
-    ("sample_template_modification", "sample", "Template modification", False,
-     "e.g. DNase, sonication, pre-amplification."),
-    ("sample_post_modification_cleanup", "sample", "Cleanup after modification", False,
-     "Purification following any modification step."),
+    (
+        "sample_types_quantity",
+        "sample",
+        "Sample type and quantity",
+        True,
+        "Sample source and number of samples.",
+    ),
+    (
+        "sample_procedure",
+        "sample",
+        "Sampling procedure (incl. storage time)",
+        True,
+        "From sampling to storage.",
+    ),
+    (
+        "sample_storage",
+        "sample",
+        "Aliquoting, storage conditions and duration",
+        True,
+        "Temperature, aliquoting and duration.",
+    ),
+    (
+        "sample_extraction",
+        "sample",
+        "Extraction method (incl. amount processed)",
+        True,
+        "Reagent/kit and sample amount processed.",
+    ),
+    (
+        "sample_spike_in",
+        "sample",
+        "Spike-in nucleic acids: source and amount",
+        False,
+        "External spike-in control(s), when used.",
+    ),
+    (
+        "sample_elution",
+        "sample",
+        "Elution / re-suspension buffer volume",
+        True,
+        "Volume and buffer.",
+    ),
+    (
+        "sample_extraction_replicates",
+        "sample",
+        "Extraction replicates",
+        False,
+        "Number of extraction replicates.",
+    ),
+    (
+        "sample_blank_recovery",
+        "sample",
+        "Extraction blanks and recovery",
+        False,
+        "Blank controls and recovery rate.",
+    ),
+    (
+        "sample_nucleic_assessment",
+        "sample",
+        "Nucleic acid quality/quantity method",
+        True,
+        "How concentration/quality were assessed.",
+    ),
+    (
+        "sample_storage_conditions",
+        "sample",
+        "Nucleic acid storage conditions",
+        True,
+        "Temperature, buffer, concentration, duration.",
+    ),
+    (
+        "sample_dilution_series",
+        "sample",
+        "Working-template dilution series",
+        True,
+        "Full dilution chain.",
+    ),
+    (
+        "sample_template_modification",
+        "sample",
+        "Template modification",
+        False,
+        "e.g. DNase, sonication, pre-amplification.",
+    ),
+    (
+        "sample_post_modification_cleanup",
+        "sample",
+        "Cleanup after modification",
+        False,
+        "Purification following any modification step.",
+    ),
     # -- Reverse Transcription ---------------------------------------------
-    ("rt_priming", "rt", "cDNA priming method and primer concentration", True,
-     "GSP / oligo-dT / random hexamer priming and primer concentration."),
-    ("rt_one_step_two_step", "rt", "One-step or two-step protocol", True,
-     "Protocol architecture; reaction details if two-step."),
-    ("rt_rna_amount", "rt", "RNA amount per reaction", True,
-     "Template input (ng/µl)."),
-    ("rt_components", "rt", "Detailed reaction components and conditions", True,
-     "Enzymes, buffer, temperatures and times."),
-    ("rt_no_rt_control", "rt", "Presence/absence of RT and estimated copies", False,
-     "No-RT control and estimated copies (to assess DNA contamination)."),
-    ("rt_manufacturer", "rt", "RT reagent manufacturer, catalog and lot", False,
-     "Source details of RT reagents."),
-    ("rt_cdna_storage", "rt", "cDNA storage conditions", False,
-     "Temperature, dilution, duration and buffer."),
+    (
+        "rt_priming",
+        "rt",
+        "cDNA priming method and primer concentration",
+        True,
+        "GSP / oligo-dT / random hexamer priming and primer concentration.",
+    ),
+    (
+        "rt_one_step_two_step",
+        "rt",
+        "One-step or two-step protocol",
+        True,
+        "Protocol architecture; reaction details if two-step.",
+    ),
+    ("rt_rna_amount", "rt", "RNA amount per reaction", True, "Template input (ng/uL)."),
+    (
+        "rt_components",
+        "rt",
+        "Detailed reaction components and conditions",
+        True,
+        "Enzymes, buffer, temperatures and times.",
+    ),
+    (
+        "rt_no_rt_control",
+        "rt",
+        "Presence/absence of RT and estimated copies",
+        False,
+        "No-RT control and estimated copies (to assess DNA contamination).",
+    ),
+    (
+        "rt_manufacturer",
+        "rt",
+        "RT reagent manufacturer, catalog and lot",
+        False,
+        "Source details of RT reagents.",
+    ),
+    (
+        "rt_cdna_storage",
+        "rt",
+        "cDNA storage conditions",
+        False,
+        "Temperature, dilution, duration and buffer.",
+    ),
     # -- qPCR Protocol ------------------------------------------------------
-    ("protocol_template_treatment", "protocol", "Template treatment", False,
-     "Initial heating or chemical denaturation."),
-    ("protocol_oligo_conc", "protocol", "Primer/probe concentration and source", True,
-     "Final reaction concentrations and source."),
-    ("protocol_reaction_chemistry", "protocol",
-     "Polymerase, Mg2+ and dNTP concentrations", False,
-     "Identities and concentrations (or kit reference)."),
-    ("protocol_kit", "protocol", "Buffer/kit: manufacturer, catalog, lot", True,
-     "Reaction chemistry source."),
-    ("protocol_thermal_cycling", "protocol", "Full thermal cycling parameters", True,
-     "All cycling steps and reaction volume."),
-    ("protocol_instrument", "protocol", "qPCR instrument manufacturer and model", True,
-     "Instrument identification."),
-    ("protocol_dye", "protocol", "Detection chemistry (dye)", False,
-     "RDML 1.3 dye chemistry when declared."),
+    (
+        "protocol_template_treatment",
+        "protocol",
+        "Template treatment",
+        False,
+        "Initial heating or chemical denaturation.",
+    ),
+    (
+        "protocol_oligo_conc",
+        "protocol",
+        "Primer/probe concentration and source",
+        True,
+        "Final reaction concentrations and source.",
+    ),
+    (
+        "protocol_reaction_chemistry",
+        "protocol",
+        "Polymerase, Mg2+ and dNTP concentrations",
+        False,
+        "Identities and concentrations (or kit reference).",
+    ),
+    (
+        "protocol_kit",
+        "protocol",
+        "Buffer/kit: manufacturer, catalog, lot",
+        True,
+        "Reaction chemistry source.",
+    ),
+    (
+        "protocol_thermal_cycling",
+        "protocol",
+        "Full thermal cycling parameters",
+        True,
+        "All cycling steps and reaction volume.",
+    ),
+    (
+        "protocol_instrument",
+        "protocol",
+        "qPCR instrument manufacturer and model",
+        True,
+        "Instrument identification.",
+    ),
+    (
+        "protocol_dye",
+        "protocol",
+        "Detection chemistry (dye)",
+        False,
+        "RDML 1.3 dye chemistry when declared.",
+    ),
     # -- Data Analysis ------------------------------------------------------
-    ("analysis_raw_data", "analysis",
-     "Raw fluorescence data storage and submission", True,
-     "Submit raw data in an open format (RDML / RDES)."),
-    ("analysis_standard", "analysis",
-     "Standard identity and quantification method", True,
-     "Synthetic, plasmid, gDNA, IVT, mRNA; calibration basis."),
-    ("analysis_cq_method", "analysis", "Baseline correction and Cq determination", True,
-     "Analysis methodology for Cq."),
-    ("analysis_software", "analysis", "qPCR analysis software (source/version)", True,
-     "Analysis program and version."),
-    ("analysis_controls", "analysis", "Positive and negative control details", True,
-     "How controls were set up."),
-    ("analysis_nc_frequency", "analysis", "Negative control frequency and Cq", False,
-     "Number of NTC wells and their Cq values."),
-    ("analysis_examples", "analysis", "Positive/negative result examples", False,
-     "Illustrative raw-data visualisation."),
-    ("analysis_efficiency", "analysis", "PCR efficiency estimation and method", True,
-     "Efficiency estimate and how it was derived."),
-    ("analysis_quantification_method", "analysis", "Target quantity calculation", True,
-     "Efficiency-corrected target quantity calculation."),
-    ("analysis_repeats", "analysis", "Replicate description", True,
-     "Biological/technical replicate structure."),
-    ("analysis_repeatability", "analysis", "Repeatability (intra-experiment)", False,
-     "Within-experiment variation."),
-    ("analysis_reproducibility", "analysis",
-     "Reproducibility (inter-experiment/user)", False,
-     "Across-experiment/user/lab variation."),
-    ("analysis_lod", "analysis", "Limit of detection calculation", False,
-     "LOD as established."),
-    ("analysis_loq_dynamic_range", "analysis",
-     "Dynamic range / limits of quantification", True,
-     "Quantification limits of the assay."),
-    ("analysis_reference_validation", "analysis",
-     "Reference gene validation method", True,
-     "How reference genes were validated."),
-    ("analysis_normalization", "analysis", "Normalization method / calculation", True,
-     "Normalized expression calculation."),
-    ("analysis_statistics", "analysis", "Statistical analysis method", True,
-     "Statistical approach used."),
-    ("analysis_significance_power", "analysis", "Significance level and power", False,
-     "Chosen alpha and statistical power."),
-    ("analysis_specificity", "analysis",
-     "Specificity (rare-variant/pathogen assays)", False,
-     "Specificity verification where relevant."),
+    (
+        "analysis_raw_data",
+        "analysis",
+        "Raw fluorescence data storage and submission",
+        True,
+        "Submit raw data in an open format (RDML / RDES).",
+    ),
+    (
+        "analysis_standard",
+        "analysis",
+        "Standard identity and quantification method",
+        True,
+        "Synthetic, plasmid, gDNA, IVT, mRNA; calibration basis.",
+    ),
+    (
+        "analysis_cq_method",
+        "analysis",
+        "Baseline correction and Cq determination",
+        True,
+        "Analysis methodology for Cq.",
+    ),
+    (
+        "analysis_software",
+        "analysis",
+        "qPCR analysis software (source/version)",
+        True,
+        "Analysis program and version.",
+    ),
+    (
+        "analysis_controls",
+        "analysis",
+        "Positive and negative control details",
+        True,
+        "How controls were set up.",
+    ),
+    (
+        "analysis_nc_frequency",
+        "analysis",
+        "Negative control frequency and Cq",
+        False,
+        "Number of NTC wells and their Cq values.",
+    ),
+    (
+        "analysis_examples",
+        "analysis",
+        "Positive/negative result examples",
+        False,
+        "Illustrative raw-data visualisation.",
+    ),
+    (
+        "analysis_efficiency",
+        "analysis",
+        "PCR efficiency estimation and method",
+        True,
+        "Efficiency estimate and how it was derived.",
+    ),
+    (
+        "analysis_quantification_method",
+        "analysis",
+        "Target quantity calculation",
+        True,
+        "Efficiency-corrected target quantity calculation.",
+    ),
+    (
+        "analysis_repeats",
+        "analysis",
+        "Replicate description",
+        True,
+        "Biological/technical replicate structure.",
+    ),
+    (
+        "analysis_repeatability",
+        "analysis",
+        "Repeatability (intra-experiment)",
+        False,
+        "Within-experiment variation.",
+    ),
+    (
+        "analysis_reproducibility",
+        "analysis",
+        "Reproducibility (inter-experiment/user)",
+        False,
+        "Across-experiment/user/lab variation.",
+    ),
+    (
+        "analysis_lod",
+        "analysis",
+        "Limit of detection calculation",
+        False,
+        "LOD as established.",
+    ),
+    (
+        "analysis_loq_dynamic_range",
+        "analysis",
+        "Dynamic range / limits of quantification",
+        True,
+        "Quantification limits of the assay.",
+    ),
+    (
+        "analysis_reference_validation",
+        "analysis",
+        "Reference gene validation method",
+        True,
+        "How reference genes were validated.",
+    ),
+    (
+        "analysis_normalization",
+        "analysis",
+        "Normalization method / calculation",
+        True,
+        "Normalized expression calculation.",
+    ),
+    (
+        "analysis_statistics",
+        "analysis",
+        "Statistical analysis method",
+        True,
+        "Statistical approach used.",
+    ),
+    (
+        "analysis_significance_power",
+        "analysis",
+        "Significance level and power",
+        False,
+        "Chosen alpha and statistical power.",
+    ),
+    (
+        "analysis_specificity",
+        "analysis",
+        "Specificity (rare-variant/pathogen assays)",
+        False,
+        "Specificity verification where relevant.",
+    ),
 ]
 
 _FIELD_BY_ID: dict[str, tuple[str, str, str, bool, str]] = {
@@ -328,6 +688,46 @@ class Miqe2Report:
         reported = sum(1 for i in essential if i.status == "reported")
         return reported / len(essential)
 
+    @property
+    def evidence_gap_plan(self) -> list[dict[str, Any]]:
+        """Prioritized actions covering every missing essential item.
+
+        Priority is the number of currently missing items addressed per unit
+        of effort (documentation/export=1, analysis=2, new measurement=3).
+        It is a transparent triage heuristic, not an experimental-design
+        optimum.
+        """
+        missing = {
+            item.field_id
+            for item in self._items
+            if item.essential and item.status == "missing"
+        }
+        actions: list[dict[str, Any]] = []
+        for action_id, action_type, effort, title, guidance, fields in _ACTION_CATALOG:
+            resolves = sorted(missing.intersection(fields))
+            if resolves:
+                actions.append(
+                    {
+                        "action_id": action_id,
+                        "action_type": action_type,
+                        "title": title,
+                        "guidance": guidance,
+                        "resolves": resolves,
+                        "resolves_count": len(resolves),
+                        "priority_score": round(len(resolves) / effort, 3),
+                    }
+                )
+        actions.sort(
+            key=lambda item: (
+                -item["priority_score"],
+                -item["resolves_count"],
+                item["action_id"],
+            )
+        )
+        for rank, action in enumerate(actions, start=1):
+            action["rank"] = rank
+        return actions
+
     def _category(self, category_id: str) -> str:
         for cid, label in MIQE2_CATEGORIES:
             if cid == category_id:
@@ -341,6 +741,7 @@ class Miqe2Report:
             "total_items": len(self._items),
             "summary": self.summary,
             "essential_completeness": round(self.essential_completeness, 3),
+            "evidence_gap_plan": self.evidence_gap_plan,
             "items": [
                 {
                     "field_id": i.field_id,
@@ -363,8 +764,13 @@ class Miqe2Report:
     def to_text(self) -> str:
         sep = "=" * 64
         sub = "-" * 64
-        lines = [sep, "MIQE 2.0 (2025) REPORTING CHECKLIST", sep,
-                 f"Experiment: {self._experiment_name}", ""]
+        lines = [
+            sep,
+            "MIQE 2.0 (2025) REPORTING CHECKLIST",
+            sep,
+            f"Experiment: {self._experiment_name}",
+            "",
+        ]
         s = self.summary
         lines += [
             "SUMMARY",
@@ -372,10 +778,19 @@ class Miqe2Report:
             f"  reported: {s['reported']}",
             f"  missing:  {s['missing']}",
             f"  n/a:      {s['na']}",
-            f"  essential completeness: "
-            f"{self.essential_completeness * 100:.1f}%",
+            f"  essential completeness: {self.essential_completeness * 100:.1f}%",
             "",
         ]
+        if self.evidence_gap_plan:
+            lines += ["PRIORITIZED EVIDENCE-GAP PLAN", sub]
+            for action in self.evidence_gap_plan:
+                lines.append(
+                    f"  {action['rank']}. [{action['action_type']}] "
+                    f"{action['title']} ({action['resolves_count']} item(s))"
+                )
+                lines.append(f"        {action['guidance']}")
+                lines.append(f"        resolves: {', '.join(action['resolves'])}")
+            lines.append("")
         for category_id, _label in MIQE2_CATEGORIES:
             group = [i for i in self._items if i.category == category_id]
             if not group:
@@ -401,7 +816,7 @@ class Miqe2Report:
 
 def miqe2_checklist(
     experiment: Experiment | None = None,
-    answers: dict[str, bool] | None = None,
+    answers: dict[str, bool | str] | None = None,
     *,
     experiment_name: str | None = None,
 ) -> Miqe2Report:
@@ -412,10 +827,11 @@ def miqe2_checklist(
             An :class:`Experiment` whose fields auto-fill attestable items.
             ``None`` yields a fully manual checklist.
         answers:
-            Optional overrides ``{field_id: reported_bool}``; explicit answers
-            take precedence over auto-derived status.  ``False`` marks the item
-            ``missing`` (or ``na`` when it is non-essential and the experiment
-            gives no evidence).
+            Optional overrides. A non-empty evidence string marks an item
+            reported; ``False`` marks it missing (or ``na`` when it is
+            non-essential). Bare ``True`` assertions are rejected because they
+            do not provide auditable evidence. Explicit answers take precedence
+            over auto-derived status.
         experiment_name:
             Name to label the report (defaults to ``experiment.name``).
 
@@ -423,6 +839,22 @@ def miqe2_checklist(
         :class:`Miqe2Report` spanning every item in :data:`MIQE2_FIELDS`.
     """
     answers = answers or {}
+    known_fields = {field[0] for field in MIQE2_FIELDS}
+    unknown_fields = sorted(set(answers) - known_fields)
+    if unknown_fields:
+        raise ValueError("Unknown MIQE 2.0 field(s): " + ", ".join(unknown_fields))
+    invalid_fields = sorted(
+        field_id
+        for field_id, value in answers.items()
+        if not isinstance(value, (bool, str))
+        or value is True
+        or (isinstance(value, str) and not value.strip())
+    )
+    if invalid_fields:
+        raise ValueError(
+            "MIQE answers must be false or non-empty evidence strings: "
+            + ", ".join(invalid_fields)
+        )
     name = experiment_name or (experiment.name if experiment is not None else "manual")
     items: list[Miqe2ChecklistItem] = []
     for field_id, category, label, essential, description in MIQE2_FIELDS:
@@ -431,8 +863,9 @@ def miqe2_checklist(
         )
 
         if field_id in answers:
-            if answers[field_id]:
-                status, evidence = "reported", (auto[1] if auto else "")
+            answer = answers[field_id]
+            if isinstance(answer, str):
+                status, evidence = "reported", answer.strip()
             elif not essential:
                 status, evidence = "na", (auto[1] if auto else "")
             else:
