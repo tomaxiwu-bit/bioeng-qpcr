@@ -476,6 +476,20 @@ def test_undetermined_replicates_remain_visible(cqs, status) -> None:
     assert evidence["n_undetermined"] == cqs.count(None)
 
 
+def test_undetermined_ntc_replicates_are_assessed_by_the_ntc_rule() -> None:
+    experiment = Experiment(name="with-ntc", wells=[
+        Well("A01", "S", "T", 20.0, replicate_type=ReplicateType.TECHNICAL),
+        Well("A02", "S", "T", 20.1, replicate_type=ReplicateType.TECHNICAL),
+        Well("B01", "NTC", "T", None, replicate_type=ReplicateType.TECHNICAL),
+        Well("B02", "NTC", "T", None, replicate_type=ReplicateType.TECHNICAL),
+    ])
+    result = check_technical_replicates(experiment)
+    assert result.status is RuleStatus.PASS
+    assert result.evidence["incomplete_groups"] == []
+    assert set(result.evidence["groups"]) == {"S/T/ungrouped"}
+    assert check_ntc(experiment).status is RuleStatus.PASS
+
+
 def test_invalid_replicate_threshold_warns_instead_of_crashing() -> None:
     experiment = Experiment(
         name="invalid-replicate-policy",

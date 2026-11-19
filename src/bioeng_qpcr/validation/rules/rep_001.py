@@ -43,7 +43,7 @@ def check_technical_replicates(experiment: Experiment) -> RuleResult:
         )
     groups: dict[tuple[str, str, str], list[float | None]] = defaultdict(list)
     for well in experiment.wells:
-        if well.replicate_type is ReplicateType.TECHNICAL:
+        if well.replicate_type is ReplicateType.TECHNICAL and not well.is_ntc:
             key = (
                 well.sample_name,
                 well.target_name,

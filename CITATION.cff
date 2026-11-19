@@ -5,7 +5,7 @@ type: software
 authors:
   - name: "bioeng-qpcr contributors"
 version: 0.6.8
-date-released: '2026-11-19'
+date-released: '2026-11-20'
 license: MIT
 repository-code: "https://github.com/tomaxiwu-bit/bioeng-qpcr"
 url: "https://github.com/tomaxiwu-bit/bioeng-qpcr"
